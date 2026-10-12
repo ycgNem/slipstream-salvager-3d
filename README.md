@@ -15,7 +15,7 @@ then drive out through the exit whose sign shows the part you want.
 - **Play locally:** double-click `Play.bat` (or `npm run dev`), then open http://localhost:5183.
   A Windows installer and portable exe: `Build desktop app.bat` (or `npm run dist:win`), in `release/`.
 - **Controls:** mouse or A/D steer (click the view to let the mouse steer), W thrust, S brake (with
-  the Grip Treads, a tap of S power-slides you round), click or Space rip (hold with a booster to rev
+  the Grip Treads, a tap of S power-slides you round, and the mouse aims where you come out), click or Space rip (hold with a booster to rev
   a Burn), E bolt on, Q look back, H hide the HUD, Esc pause.
   Gamepad: stick steers, RT thrust, LT brake, A rip, Y bolt, LB look back.
 - **Tuning panel and flat mode:** `?debug` in the address (always on in the dev server); press `.

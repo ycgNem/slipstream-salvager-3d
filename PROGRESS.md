@@ -2,6 +2,12 @@
 
 What is built. Newest first.
 
+## 2026-10-12 — Published M3 (0.2.0)
+
+- `works` pushed and `main` fast-forwarded: https://ycgnem.github.io/slipstream-salvager-3d/ now plays
+  the run in first person with the review fixes (DECISIONS #38). The 2D game's expansion (its M6-M9,
+  at 2D `c8a56e1`) is not vendored (#36).
+
 ## 2026-10-12 — Milestone 3: the critic's and the visual QA's review
 
 - **Salvage stays gold** in shade and light; **flashes go white**; a cracked part flickers white (#35).
@@ -116,4 +122,5 @@ What is built. Newest first.
 | M0 — Vendor, scaffold, 3D pipeline | done |
 | M1 — First-person parity with the 2D slice | done |
 | M2 — Playtest fixes | first pass from the critic and QA review; published; the owner's note: zoom out (#27) |
-| M3 — The run in first person | built, reviewed and fixed (#35); waiting for the owner's playtest |
+| M3 — The run in first person | built, reviewed, fixed (#35) and published (#38); waiting for the owner's playtest |
+| M4 | not planned; the candidate is re-vendoring the 2D expansion (#36) |

@@ -82,7 +82,7 @@ From the 2D game's M1 list, in first person:
 The new one (PLAN.md): **10. Play once with the HUD hidden (H). Could you tell your speed with the
 HUD hidden?**
 
-## Milestone 3 — The run in first person (built and reviewed; the owner's playtest next)
+## Milestone 3 — The run in first person (published as 0.2.0; the owner's playtest next)
 
 The 2D game's M3 (its PLAN.md section 8) re-vendored and presented from the seat. Rules: none of
 ours (DECISIONS #28).
@@ -122,9 +122,10 @@ ours (DECISIONS #28).
 
 To plan from the owner's notes on M3. The obvious candidate: **re-vendor the 2D expansion** (its
 M6-M9: the Hopper and the Jump Jets, the Bouncer and the Springs, the Spring Rammer, terrain (boost
-strips, oil, jump ramps, crusher plates), The Compactor, a six-yard run), once the 2D game has
-finished building it (DECISIONS #36): new models, airborne enemies from the seat, terrain decals,
-a boss. Also: whatever the playtest finds; the rule proposals (#24: a longer skid in 3D, a low-speed
+strips, oil, jump ramps, crusher plates), The Compactor, a six-yard run, the Skiff and the Hauler
+chassis, the Garage, unlocks, run modifiers, the Log, a daily run), once the 2D game has finished
+building it (DECISIONS #36): new models, enemies that leap and roll seen from the seat, terrain on
+the floor, a boss, a garage screen. Also: whatever the playtest finds; the rule proposals (#24: a longer skid in 3D, a low-speed
 brake; #37: a longer Snapper slide, a slide that keeps more speed), which go to the 2D game first; a
 pass on the models.
 

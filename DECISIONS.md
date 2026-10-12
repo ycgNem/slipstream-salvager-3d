@@ -397,9 +397,21 @@ input. Their two rule ideas are proposals for the owner (#37).
   new models and presentation, not a fix, and chasing it mid-build would mean re-vendoring again
   tomorrow. Kept our copy with `node scripts/vendor.mjs --accept '#36'` (as #21 did); the drift test
   fails again when the 2D project next changes a vendored file. **For the owner:** re-vendoring the
-  expansion once it settles is the natural Milestone 4.
+  expansion once it settles is the natural Milestone 4. **Accepted again** at 2D `c8a56e1` when M3 was
+  published (#38): by then the 2D game had built its M6-M9 (the Hopper and the Jump Jets, the Bouncer
+  and the Springs, the Spring Rammer, terrain: boost strips, oil, jump ramps, crusher plates; The
+  Compactor, a boss you take apart; a six-yard run; two new chassis, the Skiff and the Hauler; the
+  Garage, unlocks, run modifiers, the Log and a daily run) and drafted its 0.3.0 notes.
 - #37: **Rule proposals from the critic (for the owner; they belong in the 2D game first):** the
   Snapper's slide 0.6 s → 0.8 s (most of its slides start out of the view from the seat, so its open
   side is gone before you can turn to it); the Grip Treads' slideKeep 0.88 → 0.92 (only a hairpin
   from above ~212 px/s still exits at Slipstream, so the next rip after a slide from Cruise speed is
   a shove).
+
+## Publishing M3 (2026-10-12)
+
+- #38: **M3 published at the owner's word ("commit this project and push live").** `works` pushed and
+  `main` fast-forwarded to it; the Pages workflow tests, builds and deploys
+  https://ycgnem.github.io/slipstream-salvager-3d/. The live build is 0.2.0 (the title says so): the
+  run of five yards, the Snapper, the Plow and the Jaws in first person, with the review fixes (#35).
+  The service worker's cache is `salvager3d-v2` (#33), so a returning player fetches the new models.

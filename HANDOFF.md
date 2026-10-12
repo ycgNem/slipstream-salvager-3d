@@ -4,20 +4,23 @@ Read this first, every session.
 
 ## Where things stand (2026-10-12)
 
-- **M0-M2 are published. M3, the run in first person, is built and reviewed, not published.** The
-  owner played the published M2 build ("looks good"), asked for the view zoomed out (done, DECISIONS
-  #27) and for the next milestones: M3 is the 2D game's run re-vendored and presented from the seat
-  (DECISIONS #28-#34), then reviewed by the `indie-critic` and `qa-screens` agents and fixed (#35).
+- **M0-M3 are published (0.2.0, DECISIONS #38).** The owner played the published M2 build ("looks
+  good"), asked for the view zoomed out (done, #27) and for the next milestones: M3 is the 2D game's
+  run re-vendored and presented from the seat (#28-#34), reviewed by the `indie-critic` and
+  `qa-screens` agents and fixed (#35), then published at the owner's word. **Nobody has played M3 by
+  hand yet:** the owner's playtest notes are what comes next.
 - This is a SEPARATE game from the 2D Slipstream Salvager at `C:\Users\jacks\Documents\slipstream-salvager`.
   That folder is read-only for this project: never write, commit or run npm there (git commands
   there use `--no-optional-locks`).
 - **The rules are the 2D game's at 2D `297e40c`** (its M3, its M3 review fixes, its M4): vendored,
-  never edited here. The 2D game has since started its expansion (M6-M9: the Hopper, the Bouncer,
-  terrain, The Compactor, a six-yard run) and was still committing it this session; that drift is
-  accepted against DECISIONS #36 (`vendor.json` `divergences`), and re-vendoring it is the natural M4.
+  never edited here. The 2D game has since built its expansion (M6-M9: the Hopper and Jump Jets, the
+  Bouncer and Springs, the Spring Rammer, terrain, The Compactor boss, a six-yard run, two new
+  chassis, the Garage, unlocks, run modifiers, the Log, a daily run; last seen at 2D `c8a56e1`). That
+  drift is accepted against DECISIONS #36 (`vendor.json` `divergences`); re-vendoring it is the
+  natural M4.
 - **Published** (DECISIONS #26): the repo is https://github.com/ycgNem/slipstream-salvager-3d, live at
-  **https://ycgnem.github.io/slipstream-salvager-3d/** (still the M2 build until the owner says to
-  publish M3). Every push to `main` runs the tests, builds and deploys (`.github/workflows/deploy.yml`).
+  **https://ycgnem.github.io/slipstream-salvager-3d/** (M3, 0.2.0). Every push to `main` runs the
+  tests, builds and deploys (`.github/workflows/deploy.yml`; check it with `gh run list`).
   Day-to-day work is committed on `works`; publishing is pushing `works` and `works:main`.
 
 ## Next session: start here
@@ -25,8 +28,8 @@ Read this first, every session.
 1. Read this file, then `ROADMAP.md` (Milestone 3 has the playtest questions; Milestone 4 isn't
    planned yet, its obvious candidate is re-vendoring the 2D expansion, DECISIONS #36).
 2. If the owner has playtest notes on M3, each note becomes one change on `works` ending "DECISIONS
-   #N" (the next number is in `DECISIONS.md`). Run the checks (below), commit, and publish only when
-   the owner says so.
+   #N" (the next number is in `DECISIONS.md`: #39). Run the checks (below), commit, and publish only
+   when the owner says so.
 3. Open calls only the owner can make are under "Open points" below.
 4. **`npm test` will likely fail on the drift check at the start of the next session:** the 2D
    project was mid-expansion when #36 accepted its HEAD, and any later 2D commit to a vendored file
@@ -61,10 +64,11 @@ Read this first, every session.
    Grip Treads), Long Lanes (Rammers down three lanes, walls low enough to see over), the Plow Pit
    (Plow Rammers: their front takes nothing, joust their charge), Jaw Yard (Jaw Snappers). The Heap is
    always last. Your hull gets +1 between yards; your parts come with you.
-4. **Your parts:** Booster on your back (hold Rip: the Burn), Grip Treads on your sides (tap S at speed:
-   a power-slide U-turn; move the mouse while it swings to aim where it comes out), Plow or Jaws on your front (the Plow: drive into them at teal, it blocks
-   charges; the Jaws: a teal hit bites on and slings you back out). A hit knocks off the part on the
-   side it came from. The bottom right shows your three slots. Pause shows what each part does.
+4. **Your parts:** Booster on your back (hold Rip: the Burn), Grip Treads on your sides (tap S at
+   speed: a power-slide U-turn; move the mouse while it swings to aim where it comes out), Plow or
+   Jaws on your front (the Plow: drive into them at teal, it blocks charges; the Jaws: a teal hit
+   bites on and slings you back out). A hit knocks off the part on the side it came from. The bottom
+   right shows your three slots. Pause shows what each part does.
 5. **Reading threats in first person** (as in M2): the mirror at the top shows what's behind you;
    an enemy winding up where neither the view nor the mirror shows it gets an arrow (grey aiming,
    flashing red locked, red attacking); lanes are painted on the floor; sounds come from where they
@@ -78,15 +82,15 @@ Read this first, every session.
 
 ## Open points (for the owner)
 
-- **Publish M3?** It's committed on `works` only. "Push live" = push `works` and `works:main`.
+- **Publishing** is the owner's call: "push live" = push `works` and `works:main` (M3 is live now).
+- **Milestone 4:** re-vendor the 2D expansion (#36)? It's big (new enemies that leap and roll, terrain,
+  a boss, new chassis, the Garage); the owner may prefer playtest fixes on M3 first.
 - **Rule proposals** (rule changes, so they belong in the 2D game first): the M2 ones (DECISIONS #24:
   a longer Rammer skid in 3D, a low-speed brake) and the critic's M3 ones (#37: the Snapper's slide
   0.6 → 0.8 s, the treads' slideKeep 0.88 → 0.92). The Grip Treads' slide gives first person a
   U-turn; whether that's enough is a playtest question.
 - **Not verified by a human yet:** the Snapper packs from the seat (the rumble, the pips), the S-tap
   slide and aiming it, the Jaws' whip camera, the exit signs, and the zoomed-out view.
-- **Milestone 4** isn't planned: re-vendoring the 2D expansion once it settles (#36) is the obvious
-  start; plan it with the owner's notes.
 
 ## How to run everything (for sessions)
 
@@ -129,15 +133,16 @@ QA, read-only), both rewritten for first person.
 - `src/render3d/`: everything three.js. `view.ts` (640x360 targets, composite with the palette
   snap and edge smear, the mirror, the blit), `camera.ts` (FOV, shake, look-back, mirror camera),
   `stage.ts` (poses the yard from the sim each frame with interpolation; a new arena per layout; sim
-  events → particles; the Jaws' whip camera), `shading.ts` (parts stay gold, flashes go white), `enemies3d.ts` (Rammers, Snappers, their parts, loose
-  and towed parts and every shadow, yours too, as instanced batches), `actors.ts` (your robot, cable, debris, the claw
-  and your front/side parts as view models), `arena3d.ts` (a yard: walls, obstacles by footprint,
-  gates with exits, skyline, lights), `decals.ts` (lanes, one instanced mesh per kind, incl. the gold
-  exit chevrons; skid marks), `particles.ts`, `models.ts` (GLB loading, placeholders), `textures.ts`, `units.ts` (1 sim px =
-  0.05 m).
+  events → particles; the Jaws' whip camera; the claw's duck), `shading.ts` (parts stay gold,
+  flashes go white), `enemies3d.ts` (Rammers, Snappers, their parts and tear glints, loose and towed
+  parts, every shadow including yours, every telegraph lane, as instanced batches), `actors.ts`
+  (your robot, cable, debris, the claw and your front/side parts as view models), `arena3d.ts` (a
+  yard: walls, obstacles by footprint, gates with exits, skyline, lights), `decals.ts` (lanes, one
+  instanced mesh per kind, incl. the gold exit chevrons; skid marks), `particles.ts`, `models.ts`
+  (GLB loading, placeholders), `textures.ts`, `units.ts` (1 sim px = 0.05 m).
 - `src/ui3d/`: the 2D layer: `hud.ts` (hull, yard and wave, the three part slots, the gauge),
-  `hints.ts`, `overlay.ts` (floating text, banner, speed lines, reticle, edge markers), `signs3d.ts`
-  (the exit signs and arrows), `icons.ts` (the part icons).
+  `hints.ts`, `overlay.ts` (floating text, banner, speed lines, reticle, edge markers and
+  blind-spot pips, the U-turn arrow), `signs3d.ts` (the exit signs and arrows), `icons.ts` (the part icons).
 - `src/ui/`: the 2D game's UI kit, font and overlap audit (copied).
 - `src/app/`: `app.ts` (screens, title attract mode, pointer lock), `play.ts` (a run: input → sim →
   events → sound and effects; the wipe between yards; run results), `settings.ts`, `tuning.ts`,

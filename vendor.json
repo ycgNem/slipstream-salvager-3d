@@ -38,103 +38,108 @@
   "divergences": {
     "src/sim/arena.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
       "theirs": "3009c6f73865d2cf"
     },
     "src/sim/body.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "e8852c8da5d3711a"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "c9ad199a2d9df5eb"
     },
     "src/sim/bots.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
       "theirs": "c73188b336a4110a"
     },
     "src/sim/enemies.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "f17eff97f23d1ebe"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "f52911c6b533374b"
     },
     "src/sim/events.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "5aec5f5c10436cb5"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "9b68992c2ab0b06a"
     },
     "src/sim/rammer.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
       "theirs": "5402b68f9383b879"
     },
     "src/sim/rip.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "f45f985904142753"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "ada95c5e01023892"
     },
     "src/sim/run.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "f25ed05795b97171"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "f8dabaff5ea2a73e"
     },
     "src/sim/salvage.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
       "theirs": "cc1fef37199dcaa3"
     },
     "src/sim/tick.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "93de5e8fa4463c6b"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "6856ad063201d6a6"
     },
     "src/sim/world.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "7c80785779c29f7d"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "4f564ab293f5d038"
     },
     "src/data/arena.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "606878b92a35dd57"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "fd559eede37d4b49"
     },
     "src/data/mounts.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "db9847e93064ae9f"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "d0aa5f613f0774ed"
     },
     "src/data/parts.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
       "theirs": "1f715f8b4fb10e85"
     },
     "src/data/tuning.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "2eba0d584c62670e"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "9a98c85f03ce259d"
     },
     "src/data/waves.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
       "theirs": "a93592d0741a8d5c"
     },
     "src/data/yards.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "e1a36d1d1599f007"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "8fc166901a38049b"
     },
     "src/render/names.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
-      "theirs": "01fc2b083287f5c1"
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "53b26e88a01ef78c"
     },
     "src/ui/signs.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
       "theirs": "b222e1fded7abdaf"
     },
     "tests/run.test.ts": {
       "decision": "#36",
-      "at": "0d375f7fead369f3ece184d0d5f988991c9b26e4",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
       "theirs": "9d2efb5deeb62bae"
+    },
+    "src/sim/waves.ts": {
+      "decision": "#36",
+      "at": "c8a56e1af8df5f3d31ec27ff864a3cd516756489",
+      "theirs": "bdd9b6263475dd1f"
     }
   }
 }
