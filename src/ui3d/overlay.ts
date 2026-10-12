@@ -146,22 +146,22 @@ export class Overlay {
         ui.fill(Math.round(320 + Math.cos(a) * 34), Math.round(top + 22 + Math.sin(a) * 6), 2, 2, i % 2 ? C.white : C.frost);
       }
     }
-    // the wave banner
-    if (this.banner) {
-      const b = this.banner;
-      if (!(b.t < 0.3 && Math.floor(b.t * 20) % 2 === 1)) {
-        const y = 120;
-        const tw = textWidth(b.text) * 3;
-        ui.fill(320 - tw / 2 - 10, y - 6, tw + 20, b.sub ? 40 : 30, C.ink);
-        ui.text(b.text, 320, y, C.white, { align: 'center', scale: 3, shadow: C.plum });
-        if (b.sub) ui.text(b.sub, 320, y + 24, C.gold3, { align: 'center' });
-      }
-    }
+  }
+
+  /** The wave / yard banner, drawn last so the markers and signs never cover it. */
+  drawBanner(ui: UI) {
+    const b = this.banner;
+    if (!b || (b.t < 0.3 && Math.floor(b.t * 20) % 2 === 1)) return;
+    const y = 120;
+    const tw = Math.max(textWidth(b.text) * 3, b.sub ? textWidth(b.sub) : 0);
+    ui.fill(320 - tw / 2 - 10, y - 6, tw + 20, b.sub ? 44 : 30, C.ink);
+    ui.text(b.text, 320, y, C.white, { align: 'center', scale: 3, shadow: C.plum });
+    if (b.sub) ui.text(b.sub, 320, y + 27, C.gold3, { align: 'center' });
   }
 }
 
 /** A filled arrow, tip at (ax, ay), pointing along (ux, uy), outlined in ink; whole pixels. */
-function arrow(ui: UI, ax: number, ay: number, ux: number, uy: number, color: number) {
+export function arrow(ui: UI, ax: number, ay: number, ux: number, uy: number, color: number) {
   const px = -uy, py = ux;
   const HEAD = 11, LEN = 22, SHAFT = 2.5;
   // inside the arrow grown by g pixels (the ink outline is the shape grown by 1)
@@ -182,7 +182,8 @@ function arrow(ui: UI, ax: number, ay: number, ux: number, uy: number, color: nu
 }
 
 /**
- * Edge markers for a Rammer winding up (or charging) where neither the view nor the mirror shows it:
+ * Edge markers for an enemy winding up (or charging, or snapping) where neither the view nor the
+ * mirror shows it:
  * a long filled arrow pointing where it is, compass-style (ahead is up, behind is down). Ahead of
  * you it sits on the frame's side edge; behind you it sits beside the mirror, and that side of the
  * mirror's frame lights up (the mirror is where you look for things behind). Light grey while it is
@@ -196,12 +197,14 @@ export function drawMarkers(ui: UI, cam: THREE.PerspectiveCamera, rearCam: THREE
   const rank = (c: number) => (c === C.danger3 ? 2 : c === C.dangerPink ? 1 : 0);
   const flash = Math.floor(time * 12) % 2 === 1;
   const threats: { p: THREE.Vector3; col: number; gate?: boolean }[] = [];
-  for (const r of w.rammers) {
-    if (r.state !== 'windup' && r.state !== 'charge') continue;
+  for (const r of w.enemies) {
+    // a Rammer's charge, a Snapper's snap, or either winding up for one
+    const attacking = r.kind === 'rammer' ? r.state === 'charge' : r.state === 'snap';
+    if (r.state !== 'windup' && !attacking) continue;
     const p = pos(r.id);
     if (!p) continue;
-    const locked = r.state === 'charge' || r.locked;
-    threats.push({ p, col: r.state === 'charge' ? C.danger3 : locked ? (flash ? C.dangerPink : C.danger3) : C.frost });
+    const locked = attacking || r.locked;
+    threats.push({ p, col: attacking ? C.danger3 : locked ? (flash ? C.dangerPink : C.danger3) : C.frost });
   }
   // a gate about to open (the wave's warning)
   if (w.wave.phase === 'warn')

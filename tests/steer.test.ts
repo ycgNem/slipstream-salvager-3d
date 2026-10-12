@@ -2,7 +2,7 @@
 // you turn; keys never trigger the sim's brake-and-pivot; S stops you without flipping you round.
 import { describe, expect, it } from 'vitest';
 import { step } from '../src/sim/tick';
-import { createWorld, type World } from '../src/sim/world';
+import { createWorld, giveBolted, type World } from '../src/sim/world';
 import { KEY_RATE, MAX_OFF, MAX_PEND, PEND_TIME, Steer, type SteerIn } from '../src/input3d/steer';
 import { openArena } from './helpers';
 import { wrapAngle } from '../src/data/dirs';
@@ -156,5 +156,48 @@ describe('first-person steering', () => {
     expect(w.player.rip).not.toBeNull();
     for (let i = 0; i < 8; i++) drive(w, s, { thrust: 1, mouseDx: 40 }, 1);
     expect(Math.abs(s.off)).toBeLessThan(0.5);
+  });
+});
+
+describe('first-person steering with the Grip Treads (DECISIONS #31)', () => {
+  it('a tap of S at top speed power-slides you round and keeps Slipstream', () => {
+    const w = world(), s = new Steer();
+    giveBolted(w, 'treads');
+    drive(w, s, { thrust: 1 }, 120);
+    const h0 = w.player.heading;
+    drive(w, s, { brake: true }, 2);
+    expect(w.player.slide).toBe(true);
+    let n = 0;
+    while (w.player.slide && n++ < 60) drive(w, s, { thrust: 1 }, 1);
+    // round in about a third of a second, still at Slipstream (2D PLAN.md 8.4)
+    expect(n / 60).toBeLessThan(0.45);
+    expect(w.player.speed).toBeGreaterThan(w.t.slipAt);
+    drive(w, s, { thrust: 1 }, 20);
+    expect(Math.abs(wrapAngle(w.player.heading - h0))).toBeGreaterThan(2.9);
+  });
+
+  it('slides round the side you steer', () => {
+    for (const side of [-1, 1]) {
+      const w = world(), s = new Steer();
+      giveBolted(w, 'treads');
+      drive(w, s, { thrust: 1 }, 120);
+      const h0 = w.player.heading;
+      drive(w, s, { brake: true, left: side < 0, right: side > 0 }, 6);
+      expect(Math.sign(wrapAngle(w.player.heading - h0))).toBe(side);
+    }
+  });
+
+  it('holding S slides once, then just coasts', () => {
+    const w = world(), s = new Steer();
+    giveBolted(w, 'treads');
+    drive(w, s, { thrust: 1 }, 120);
+    let slides = 0;
+    for (let i = 0; i < 90; i++) {
+      const xy = s.update(w, { ...IDLE, brake: true }, cfg);
+      step(w, { ...xy, rip: false, bolt: false });
+      slides += w.events.filter((e) => e.k === 'slide').length;
+      w.events.length = 0;
+    }
+    expect(slides).toBe(1);
   });
 });

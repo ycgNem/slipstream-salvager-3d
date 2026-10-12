@@ -3,7 +3,9 @@
 import { Rng } from '../engine/rng';
 import { RING, type ArenaDef, type Gate } from '../data/arena';
 import { defaultTuning, type Tuning } from '../data/tuning';
-import type { PartId } from '../data/parts';
+import { WAVES, type WaveDef } from '../data/waves';
+import { PARTS, type EnemyKind, type PartId } from '../data/parts';
+import { MOUNTS, type MountSlot } from '../data/mounts';
 import type { SimEvent } from './events';
 
 export const DT = 1 / 60;
@@ -24,8 +26,29 @@ export interface RipState {
   t: number;
   tier: Tier;
   burn: boolean;
-  /** Rammers already hit by this rip */
+  /** a ram hit with the Plow (contact, not the button) */
+  plow?: boolean;
+  /** enemies already hit by this rip */
   hits: number[];
+}
+
+/** A part bolted onto one of your mounts. */
+export interface Bolted {
+  id: PartId;
+  /** it was knocked loose once already: the next hit shatters it (DECISIONS #58) */
+  cracked: boolean;
+}
+
+/** Swinging round a bitten enemy with the Jaws. */
+export interface Latch {
+  id: number;
+  t: number;
+  /** the swing's center (the enemy when bitten), radius, start angle and direction */
+  cx: number;
+  cy: number;
+  r: number;
+  a0: number;
+  dir: 1 | -1;
 }
 
 export interface Player {
@@ -51,10 +74,12 @@ export interface Player {
   rev: number | null;
   /** seconds left passing through bodies */
   pass: number;
-  /** the part bolted on (one rear mount) */
-  part: PartId | null;
-  /** it was knocked loose once already: the next hit shatters it (DECISIONS #58) */
-  partCracked: boolean;
+  /** the parts bolted on, one per mount (PLAN.md 8.2) */
+  parts: Partial<Record<MountSlot, Bolted>>;
+  /** power-sliding round with the Grip Treads instead of braking */
+  slide: boolean;
+  /** swinging round a bitten enemy with the Jaws */
+  latch: Latch | null;
   /** the part towed behind on the cable */
   tow: { part: PartId; x: number; y: number; vx: number; vy: number; cracked: boolean } | null;
   /** seconds into bolting, or null */
@@ -67,18 +92,21 @@ export interface Player {
   lastHeading: number;
 }
 
-export type RammerState = 'enter' | 'stalk' | 'windup' | 'charge' | 'skid';
+/** Rammer: enter, stalk, windup, charge, skid. Snapper: enter, hunt, windup, snap, slide, stunned. */
+export type EnemyState = 'enter' | 'stalk' | 'windup' | 'charge' | 'skid' | 'hunt' | 'snap' | 'slide' | 'stunned';
 
-export interface Rammer {
+export interface Enemy {
   id: number;
+  kind: EnemyKind;
   x: number;
   y: number;
   /** facing (rad) */
   face: number;
   hp: number;
-  booster: boolean;
+  /** the parts it wears, on the same mounts as yours */
+  parts: Partial<Record<MountSlot, PartId>>;
   safety: boolean;
-  state: RammerState;
+  state: EnemyState;
   /** seconds in the current state */
   t: number;
   /** this attack's windup length and the locked part at its end */
@@ -88,6 +116,8 @@ export interface Rammer {
   shove: boolean;
   locked: boolean;
   travelled: number;
+  /** how far the current charge runs, fixed when its lane locks */
+  chargeLen: number;
   /** seconds until it may wind up again */
   cd: number;
   /** extra velocity (shoves, skids, rebounds), decays */
@@ -102,7 +132,13 @@ export interface Rammer {
   drafted: boolean;
   /** Slipstream hits taken at 1 HP under the wave 1 safety net */
   shaken: number;
+  /** its own speed along its facing (a Snapper drives like you do) */
+  speed: number;
+  /** a sliding Snapper's line of travel (it faces round while it slides) */
+  slideDir?: number;
 }
+/** The slice's name for an enemy; every enemy is a Rammer or a Snapper. */
+export type Rammer = Enemy;
 
 export interface Pickup {
   id: number;
@@ -116,7 +152,7 @@ export interface Pickup {
   cracked: boolean;
 }
 
-export type WavePhase = 'banner' | 'warn' | 'fight' | 'breather' | 'done';
+export type WavePhase = 'banner' | 'warn' | 'fight' | 'breather' | 'exit' | 'done';
 
 export interface Stats {
   ticks: number;
@@ -145,8 +181,9 @@ export interface World {
   seed: number;
   tick: number;
   arena: ArenaDef;
+  waves: WaveDef[];
   player: Player;
-  rammers: Rammer[];
+  enemies: Enemy[];
   pickups: Pickup[];
   nextId: number;
   wave: { index: number; phase: WavePhase; t: number; gates: Gate[] };
@@ -154,9 +191,16 @@ export interface World {
   hitstop: number;
   events: SimEvent[];
   stats: Stats;
-  result: null | 'cleared' | 'scrapped';
+  /** cleared: the last yard (or a lone encounter) is done; exit: you drove out to the next yard */
+  result: null | 'cleared' | 'scrapped' | 'exit';
   /** run no waves (tests and the route bots set up their own Rammers) */
   sandbox: boolean;
+  /** in a run: the exit gates that open once the yard is cleared, each leading to a next-yard option */
+  exitPlan: { gate: Gate['id']; option: number }[];
+  /** the exits open now (the yard is cleared and you can drive out) */
+  exits: { gate: Gate['id']; option: number }[];
+  /** the option whose exit the player drove out through */
+  exitChoice: number | null;
 }
 
 export interface WorldOpts {
@@ -165,6 +209,9 @@ export interface WorldOpts {
   flat?: boolean;
   sandbox?: boolean;
   arena?: ArenaDef;
+  waves?: WaveDef[];
+  /** in a run: the exit gates that open when the yard is cleared (none: the yard just ends) */
+  exits?: { gate: Gate['id']; option: number }[];
 }
 
 export function createWorld(opts: WorldOpts = {}): World {
@@ -179,13 +226,14 @@ export function createWorld(opts: WorldOpts = {}): World {
     seed,
     tick: 0,
     arena,
+    waves: opts.waves ?? WAVES,
     player: {
       x: s.x, y: s.y, heading: s.heading, speed: 0, face: 0,
       hull: t.hull, invuln: 0, knock: 0, stun: 0, brake: false,
       rip: null, ripCd: 0, ripBuf: 0, rev: null, pass: 0,
-      part: null, partCracked: false, tow: null, bolt: null, prevRip: false, prevBolt: false, tier: 'crawl', omega: 0, lastHeading: s.heading,
+      parts: {}, slide: false, latch: null, tow: null, bolt: null, prevRip: false, prevBolt: false, tier: 'crawl', omega: 0, lastHeading: s.heading,
     },
-    rammers: [],
+    enemies: [],
     pickups: [],
     nextId: 1,
     wave: { index: 0, phase: opts.sandbox ? 'done' : 'banner', t: 0, gates: [] },
@@ -198,18 +246,65 @@ export function createWorld(opts: WorldOpts = {}): World {
     },
     result: null,
     sandbox: !!opts.sandbox,
+    exitPlan: opts.exits ?? [],
+    exits: [],
+    exitChoice: null,
   };
 }
 
-/** Add a Rammer (waves use this; so do tests in sandbox mode). */
-export function addRammer(w: World, x: number, y: number, face = 0, opts: { booster?: boolean; safety?: boolean; state?: RammerState } = {}): Rammer {
-  const r: Rammer = {
-    id: w.nextId++, x, y, face, hp: w.t.rammerHp, booster: opts.booster ?? true, safety: !!opts.safety,
-    state: opts.state ?? 'stalk', t: 0, windup: 0, lock: 0, shove: false, locked: false, travelled: 0,
+export interface EnemyOpts {
+  /** the parts it wears; default: its kind's own part (a Rammer's booster, a Snapper's treads) */
+  parts?: PartId[];
+  safety?: boolean;
+  state?: EnemyState;
+}
+
+/** Add an enemy (waves use this; so do tests in sandbox mode). */
+export function addEnemy(w: World, kind: EnemyKind, x: number, y: number, face = 0, opts: EnemyOpts = {}): Enemy {
+  const parts: Partial<Record<MountSlot, PartId>> = {};
+  for (const id of opts.parts ?? [kind === 'rammer' ? 'booster' : 'treads']) parts[PARTS[id].mount] = id;
+  const e: Enemy = {
+    id: w.nextId++, kind, x, y, face, hp: kind === 'rammer' ? w.t.rammerHp : w.t.snapperHp, parts, safety: !!opts.safety,
+    state: opts.state ?? (kind === 'rammer' ? 'stalk' : 'hunt'), t: 0, windup: 0, lock: 0, shove: false, locked: false, travelled: 0, chargeLen: 0,
     cd: w.rng.range(0.6, 1.2), vx: 0, vy: 0, enter: { x: Math.cos(face), y: Math.sin(face) }, slammed: false, skidFor: w.t.skidTime, drafted: false, shaken: 0,
+    speed: 0,
   };
-  w.rammers.push(r);
-  return r;
+  w.enemies.push(e);
+  return e;
+}
+
+/** Add a Rammer, with its booster unless `booster: false` (the slice's tests). */
+export function addRammer(w: World, x: number, y: number, face = 0, opts: { booster?: boolean; safety?: boolean; state?: EnemyState; parts?: PartId[] } = {}): Enemy {
+  return addEnemy(w, 'rammer', x, y, face, { parts: opts.parts ?? (opts.booster === false ? [] : ['booster']), safety: opts.safety, state: opts.state });
+}
+
+/** Does this Rammer still have its booster (so it can charge)? */
+export function hasBooster(e: Enemy): boolean {
+  return e.parts.rear === 'booster';
+}
+
+export function hasAnyPart(e: Enemy): boolean {
+  return MOUNTS.some((m) => !!e.parts[m]);
+}
+
+/** The player's bolted part with this id, if any. */
+export function bolted(p: Player, id: PartId): Bolted | undefined {
+  for (const m of MOUNTS) if (p.parts[m]?.id === id) return p.parts[m];
+  return undefined;
+}
+
+/** Bolt a part straight onto its mount (tests, debug, the tuning panel). */
+export function giveBolted(w: World, id: PartId, cracked = false) {
+  w.player.parts[PARTS[id].mount] = { id, cracked };
+}
+
+export function boltedCount(p: Player): number {
+  return MOUNTS.filter((m) => !!p.parts[m]).length;
+}
+
+/** Collision radius by kind. */
+export function radiusOf(w: World, e: Enemy): number {
+  return e.kind === 'rammer' ? w.t.rammerRadius : w.t.snapperRadius;
 }
 
 /** The tier a speed falls in (absolute marks; PLAN.md 4.2). */

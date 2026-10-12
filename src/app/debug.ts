@@ -1,9 +1,12 @@
-// Scripted scenes for the screenshot sweep (e2e/shots.mjs): each one starts a seeded encounter,
+// Scripted scenes for the screenshot sweep (e2e/shots.mjs): each one starts a seeded run in a yard,
 // replays a fixed input log through the real sim (and the real presentation, tick by tick), and
-// freezes there, so every first-person state can be looked at and compared between runs.
-import { addRammer, NO_INPUT, type InputFrame, type World } from '../sim/world';
+// freezes there, so every first-person state can be looked at and compared between runs. Scenes
+// never touch the best record.
+import { addEnemy, addRammer, giveBolted, NO_INPUT, type InputFrame, type World } from '../sim/world';
 import { beginWindup } from '../sim/rammer';
+import { beginSnap, toSlide } from '../sim/snapper';
 import { step } from '../sim/tick';
+import type { YardId } from '../data/yards';
 import { snapshot } from '../render3d/stage';
 import type { App } from './app';
 import type { Play } from './play';
@@ -15,6 +18,12 @@ export const SCENES = [
   'title', 'settings', 'play', 'crawl', 'cruise', 'slip', 'telegraph-track', 'telegraph-lock', 'hitstop',
   'tear', 'towing', 'tow-swing', 'bolting', 'booster', 'burn', 'burn-stun', 'skid', 'stripped', 'gate-warn', 'wreck', 'joust',
   'hurt', 'scrapped', 'pause', 'tuning', 'flat', 'hud-hidden', 'look-back',
+  // Milestone 3: the yards, the Snapper, the new parts, the exits and the run
+  'yard-kennel', 'yard-lanes', 'yard-pit', 'yard-jaws', 'yard-heap',
+  'snapper-hunt', 'snapper-windup', 'snapper-slide', 'snapper-stripped', 'snapper-behind',
+  'plow-rammer', 'clang', 'jaw-snapper',
+  'treads-on', 'treads-slide', 'plow-on', 'plow-ram', 'block', 'jaws-on', 'latch', 'hud-parts',
+  'exits', 'exits-away', 'wipe', 'enter-yard',
 ] as const;
 export type SceneName = (typeof SCENES)[number];
 
@@ -23,8 +32,8 @@ const EAST = F(1, 0);
 
 /** Run the sim n ticks with an input, through the whole presentation, as play does. */
 function run(play: Play, app: App, n: number, input: InputFrame | ((w: World) => InputFrame) = NO_INPUT) {
-  const w = play.world;
   for (let i = 0; i < n; i++) {
+    const w = play.world;
     play.prev = snapshot(w);
     if (step(w, typeof input === 'function' ? input(w) : input)) app.stage.ticked(w);
     for (const e of w.events) play.handle(e);
@@ -48,6 +57,23 @@ function place(play: Play, x: number, y: number, heading: number, speed: number)
   play.steer.reset(heading);
 }
 
+/** The yard's last wave is done: the exits open (and the YARD CLEARED banner). */
+function clearYard(play: Play, app: App) {
+  const w = play.world;
+  w.sandbox = false;
+  w.enemies.length = 0;
+  w.wave.index = w.waves.length - 1;
+  w.wave.phase = 'fight';
+  run(play, app, 2);
+}
+
+const YARD_OF: Partial<Record<SceneName, YardId>> = {
+  'yard-kennel': 'kennel', 'yard-lanes': 'lanes', 'yard-pit': 'pit', 'yard-jaws': 'jaws', 'yard-heap': 'heap',
+  'snapper-hunt': 'kennel', 'snapper-windup': 'kennel', 'snapper-slide': 'kennel', 'snapper-stripped': 'kennel', 'snapper-behind': 'kennel',
+  'plow-rammer': 'pit', clang: 'pit', block: 'pit', 'jaw-snapper': 'jaws', latch: 'jaws', 'jaws-on': 'jaws',
+  cleared: 'heap',
+};
+
 export function scene(app: App, name: SceneName) {
   app.settings.hints = true;
   if (name === 'title') return app.toTitle();
@@ -55,10 +81,12 @@ export function scene(app: App, name: SceneName) {
     app.toTitle();
     return app.openSettings();
   }
-  app.startPlay(3);
+  app.startPlay(3, YARD_OF[name] ?? 'ring');
   const play = app.play!;
+  play.record = false;
   const w = play.world;
-  play.hints.seen = { speed: true, tear: true, bolt: true, burn: true };
+  const seenAll = { speed: true, tear: true, bolt: true, burn: true, mirror: true, exit: true, treads: true, plow: true, jaws: true, snapper: true, plowfoe: true, jawfoe: true };
+  play.hints.seen = { ...seenAll };
   switch (name) {
     case 'play':
       play.hints.seen = {};
@@ -159,19 +187,19 @@ export function scene(app: App, name: SceneName) {
     }
     case 'booster':
       quiet(play);
-      w.player.part = 'booster';
+      giveBolted(w, 'booster');
       place(play, 80, 300, 0, 0);
       run(play, app, 70, EAST);
       break;
     case 'burn':
       quiet(play);
-      w.player.part = 'booster';
+      giveBolted(w, 'booster');
       place(play, 60, 180, 0, 0);
       run(play, app, 30, F(1, 0, true));
       break;
     case 'burn-stun':
       quiet(play);
-      w.player.part = 'booster';
+      giveBolted(w, 'booster');
       place(play, 470, 180, 0, 0);
       run(play, app, 40, F(1, 0, true));
       break;
@@ -212,6 +240,7 @@ export function scene(app: App, name: SceneName) {
       place(play, 220, 200, 0, 230);
       const r = addRammer(w, 300, 200, Math.PI, { state: 'charge' });
       r.travelled = 0;
+      r.chargeLen = 260;
       run(play, app, 6, F(1, 0, true));
       break;
     }
@@ -219,6 +248,7 @@ export function scene(app: App, name: SceneName) {
       quiet(play);
       place(play, 300, 200, 0, 60);
       const r = addRammer(w, 230, 200, 0, { state: 'charge' });
+      r.chargeLen = 260;
       run(play, app, 14, F(0.2, 0));
       break;
     }
@@ -252,17 +282,232 @@ export function scene(app: App, name: SceneName) {
       app.stage.rig.look = 1;
       break;
     }
+
+    // ---------------- Milestone 3 ----------------
+    case 'yard-kennel': {
+      // the post forest, two Snappers coming round the posts
+      quiet(play);
+      place(play, 80, 180, 0, 0);
+      addEnemy(w, 'snapper', 300, 150, Math.PI).cd = 99;
+      addEnemy(w, 'snapper', 330, 220, Math.PI).cd = 99;
+      run(play, app, 30, F(0.3, 0));
+      break;
+    }
+    case 'yard-lanes': {
+      // down the middle lane, a Rammer at the far end, another seen over the low wall
+      quiet(play);
+      place(play, 60, 184, 0, 0);
+      addRammer(w, 520, 184, Math.PI).cd = 99;
+      addRammer(w, 420, 300, Math.PI).cd = 99;
+      run(play, app, 30, F(0.3, 0));
+      break;
+    }
+    case 'yard-pit': {
+      // the bowl round the tower, a Plow Rammer beside it
+      quiet(play);
+      place(play, 320, 300, -Math.PI / 2, 0);
+      addRammer(w, 230, 140, 0.4, { parts: ['booster', 'plow'] }).cd = 99;
+      run(play, app, 30);
+      break;
+    }
+    case 'yard-jaws': {
+      // the open cross, the corner blocks, a Jaw Snapper in the middle
+      quiet(play);
+      place(play, 60, 184, 0, 0);
+      addEnemy(w, 'snapper', 330, 184, Math.PI, { parts: ['treads', 'jaws'] }).cd = 99;
+      run(play, app, 30, F(0.2, 0));
+      break;
+    }
+    case 'yard-heap': {
+      // the finale: a broken ring of scrap, one of everything
+      quiet(play);
+      place(play, 60, 184, 0, 0);
+      addRammer(w, 400, 140, Math.PI).cd = 99;
+      addRammer(w, 420, 230, Math.PI, { parts: ['booster', 'plow'] }).cd = 99;
+      addEnemy(w, 'snapper', 260, 150, Math.PI).cd = 99;
+      addEnemy(w, 'snapper', 270, 225, Math.PI, { parts: ['treads', 'jaws'] }).cd = 99;
+      run(play, app, 24, F(0.2, 0));
+      break;
+    }
+    case 'snapper-hunt': {
+      quiet(play);
+      place(play, 80, 140, 0, 0);
+      const s = addEnemy(w, 'snapper', 330, 140, Math.PI);
+      s.cd = 99;
+      run(play, app, 40);
+      break;
+    }
+    case 'snapper-windup': {
+      // planted, crouched, its short lane locked on you
+      quiet(play);
+      place(play, 330, 140, Math.PI, 0);
+      const s = addEnemy(w, 'snapper', 268, 142, 0);
+      beginSnap(w, s);
+      run(play, app, 22);
+      break;
+    }
+    case 'snapper-slide': {
+      // power-sliding round to face you, broadside: its side is open
+      quiet(play);
+      place(play, 160, 140, 0, 0);
+      const s = addEnemy(w, 'snapper', 290, 130, Math.PI / 2);
+      s.speed = 160;
+      toSlide(w, s, 9, 160);
+      run(play, app, 12);
+      break;
+    }
+    case 'snapper-stripped': {
+      quiet(play);
+      place(play, 160, 140, 0, 0);
+      const s = addEnemy(w, 'snapper', 270, 150, Math.PI * 0.9, { parts: [] });
+      s.hp = 1;
+      s.cd = 99;
+      run(play, app, 30);
+      break;
+    }
+    case 'snapper-behind': {
+      // a Snapper behind you winding up: the mirror and the arrow
+      quiet(play);
+      place(play, 330, 140, 0, 0);
+      const s = addEnemy(w, 'snapper', 280, 142, 0);
+      beginSnap(w, s);
+      run(play, app, 20, F(0.15, 0));
+      break;
+    }
+    case 'plow-rammer': {
+      quiet(play);
+      place(play, 120, 268, 0, 0);
+      const r = addRammer(w, 330, 268, Math.PI, { parts: ['booster', 'plow'] });
+      r.cd = 99;
+      run(play, app, 30);
+      break;
+    }
+    case 'clang': {
+      // a Slipstream hit on a plowed front: nothing gets through
+      quiet(play);
+      place(play, 150, 268, 0, 235);
+      const r = addRammer(w, 230, 268, Math.PI, { parts: ['booster', 'plow'] });
+      r.cd = 99;
+      run(play, app, 8, F(1, 0, true));
+      break;
+    }
+    case 'jaw-snapper': {
+      // a Jaw Snapper winding up: its jaws gape
+      quiet(play);
+      place(play, 330, 184, Math.PI, 0);
+      const s = addEnemy(w, 'snapper', 265, 184, 0, { parts: ['treads', 'jaws'] });
+      beginSnap(w, s);
+      run(play, app, 20);
+      break;
+    }
+    case 'treads-on':
+      quiet(play);
+      giveBolted(w, 'treads');
+      place(play, 40, 300, 0, 0);
+      run(play, app, 70, EAST);
+      break;
+    case 'treads-slide':
+      // mid power-slide round with the Grip Treads
+      quiet(play);
+      giveBolted(w, 'treads');
+      place(play, 120, 300, 0, 0);
+      run(play, app, 60, EAST);
+      run(play, app, 9, F(-1, -0.05));
+      break;
+    case 'plow-on':
+      quiet(play);
+      giveBolted(w, 'plow');
+      place(play, 40, 300, 0, 0);
+      run(play, app, 90, EAST);
+      break;
+    case 'plow-ram': {
+      // driving the Plow into a Snapper's side at Slipstream
+      quiet(play);
+      giveBolted(w, 'plow');
+      place(play, 160, 200, 0, 235);
+      const s = addEnemy(w, 'snapper', 230, 200, Math.PI / 2);
+      s.cd = 99;
+      run(play, app, 10, EAST);
+      break;
+    }
+    case 'block': {
+      // a charge into your Plow is blocked
+      quiet(play);
+      giveBolted(w, 'plow');
+      place(play, 160, 268, 0, 60);
+      const r = addRammer(w, 280, 268, Math.PI, { state: 'charge' });
+      r.chargeLen = 260;
+      run(play, app, 14, F(0.3, 0));
+      break;
+    }
+    case 'jaws-on':
+      quiet(play);
+      giveBolted(w, 'jaws');
+      place(play, 60, 184, 0, 0);
+      run(play, app, 70, EAST);
+      break;
+    case 'latch': {
+      // the Jaws bite a Snapper's side and swing you round it
+      quiet(play);
+      giveBolted(w, 'jaws');
+      place(play, 230, 184, 0, 235);
+      const s = addEnemy(w, 'snapper', 290, 184, Math.PI / 2);
+      s.cd = 99;
+      // drive in until the bite, then stop mid-swing
+      for (let i = 0; i < 40 && !w.player.latch; i++) run(play, app, 1, F(1, 0, true));
+      run(play, app, 4);
+      break;
+    }
+    case 'hud-parts':
+      // every slot full, one cracked, towing a fourth
+      quiet(play);
+      giveBolted(w, 'booster');
+      giveBolted(w, 'treads', true);
+      giveBolted(w, 'jaws');
+      place(play, 200, 300, -0.15, 150);
+      w.player.tow = { part: 'plow', x: 186, y: 302, vx: 0, vy: 0, cracked: false };
+      run(play, app, 24, F(1, -0.15));
+      break;
+    case 'exits':
+      // the yard is cleared: facing the east exit, its sign over it
+      place(play, 380, 190, 0, 0);
+      clearYard(play, app);
+      run(play, app, 60);
+      play.overlay.banner = null;
+      break;
+    case 'exits-away':
+      // cleared, facing north: both exits are out of view
+      place(play, 320, 180, -Math.PI / 2, 0);
+      clearYard(play, app);
+      run(play, app, 60);
+      play.overlay.banner = null;
+      break;
+    case 'wipe':
+    case 'enter-yard':
+      // drive out the east exit; the wipe covers the swap to the next yard
+      place(play, 560, 176, 0, 0);
+      clearYard(play, app);
+      run(play, app, 90, EAST);
+      play.update(0.42);
+      if (name === 'enter-yard') {
+        play.update(0.4);
+        run(play, app, 30, EAST);
+      }
+      break;
     case 'cleared':
     case 'scrapped':
       run(play, app, 30);
       play.overlay.banner = null;
+      giveBolted(w, 'booster');
+      giveBolted(w, 'jaws', true);
       w.result = name;
-      play.endT = 2;
       w.stats.ticks = 6123;
       w.stats.tears = 2;
       w.stats.slipHits = 9;
       w.stats.topSpeed = 288;
       if (name === 'scrapped') w.player.hull = 0;
+      play.update(0);
+      play.endT = 2;
       break;
   }
   play.frozen = true;

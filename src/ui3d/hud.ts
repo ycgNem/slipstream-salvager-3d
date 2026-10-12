@@ -1,14 +1,15 @@
 // The first-person HUD, kept to the bottom corners so the floor ahead and the rear strip stay
-// clear: hull pips and the wave bottom left, the speed gauge under them (the last item in the speed
-// readability stack, and it can be hidden: THREEJS-NOTES rule 8), the part slot bottom right with
-// the towing and bolting state.
+// clear: hull pips with the yard and wave bottom left, the speed gauge under them (the last item in
+// the speed readability stack, and it can be hidden: THREEJS-NOTES rule 8), the three part slots
+// bottom right (rear, sides, front, as in 2D) with what you're towing and the bolt's progress.
 import { C, PALETTE } from '../data/palette';
-import { WAVES } from '../data/waves';
 import { PARTS } from '../data/parts';
+import { MOUNTS } from '../data/mounts';
 import { playerStats } from '../sim/body';
 import type { World } from '../sim/world';
 import { textWidth } from '../ui/font';
 import type { UI } from '../ui/ui';
+import { partIcon } from './icons';
 
 const GAUGE_MAX = 330;
 
@@ -28,60 +29,51 @@ function pip(ui: UI, x: number, y: number, full: boolean) {
   }
 }
 
-/** The Booster icon, 14x10, gold (salvage). */
-export function boosterIcon(ui: UI, x: number, y: number, cracked = false) {
-  const c = ui.ctx;
-  const f = (xx: number, yy: number, w: number, h: number, k: number) => {
-    c.fillStyle = PALETTE[k];
-    c.fillRect(x + xx, y + yy, w, h);
-  };
-  f(0, 2, 10, 6, C.ink);
-  f(1, 3, 8, 4, C.gold);
-  f(1, 3, 8, 1, C.gold3);
-  f(9, 1, 5, 8, C.ink);
-  f(10, 2, 3, 6, C.gold0);
-  f(11, 3, 2, 4, C.orange);
-  f(3, 3, 1, 4, C.gold2);
-  f(6, 3, 1, 4, C.gold2);
-  if (cracked) {
-    f(4, 3, 1, 1, C.ink);
-    f(5, 4, 1, 1, C.ink);
-    f(4, 5, 1, 1, C.ink);
-  }
-}
-
 export interface HudOpts {
   gauge: boolean;
   keys: { bolt: string };
-  /** the bolt hint is up: it says the key, so the slot just says TOWING */
+  /** the bolt hint is up: it says the key, so the slot just names the part */
   boltHint?: boolean;
+  /** what goes after the hull pips (the yard and wave in a run) */
+  label?: string;
 }
 
 export function drawHud(ui: UI, w: World, o: HudOpts) {
   const p = w.player, t = w.t;
 
   // hull and wave, bottom left
-  const wave = `WAVE ${Math.min(WAVES.length, w.wave.index + 1)}/${WAVES.length}`;
+  const wave = o.label ?? `WAVE ${Math.min(w.waves.length, w.wave.index + 1)}/${w.waves.length}`;
   const hy = o.gauge ? 330 : 346;
   const wx = 6 + t.hull * 10 + 6;
   ui.fill(2, hy - 3, wx + textWidth(wave) + 6, 14, C.ink);
   for (let i = 0; i < t.hull; i++) pip(ui, 6 + i * 10, hy, i < p.hull);
   ui.text(wave, wx, hy, C.frost);
 
-  // the part slot, bottom right
-  const name = p.part ? PARTS[p.part].name.toUpperCase() + (p.partCracked ? ' (CRACKED)' : '') : 'NO PART';
+  // the three part slots, bottom right, with what you're towing to their left
+  const slotX = (i: number) => 584 + i * 18, sy = 342;
   const bolting = p.bolt !== null;
-  const tow = p.tow ? (bolting ? 'BOLTING...' : o.boltHint ? 'TOWING' : `TOWING  ${o.keys.bolt}: BOLT ON`) : '';
-  const nameW = textWidth(name);
-  const sx = 620;
-  const rowW = 22 + nameW + (tow ? textWidth(tow) + 12 : 0);
-  ui.fill(638 - rowW - 8, 343, rowW + 8, 15, C.ink);
-  if (p.part) boosterIcon(ui, sx, 345, p.partCracked);
-  else ui.fill(sx, 346, 14, 8, C.plum);
-  ui.text(name, sx - 6, 346, p.part ? C.gold2 : C.lilac, { align: 'right' });
+  const towName = p.tow ? PARTS[p.tow.part].name.toUpperCase() : '';
+  const tow = p.tow ? (bolting ? `BOLTING ${towName}...` : o.boltHint ? towName : `${towName}  ${o.keys.bolt}: BOLT ON`) : '';
+  const left = slotX(0) - 6 - (tow ? textWidth(tow) + 4 : 0);
+  ui.fill(left - 4, sy - 1, 640 - left + 2, 18, C.ink);
+  MOUNTS.forEach((m, i) => {
+    const b = p.parts[m], x = slotX(i);
+    ui.fill(x - 1, sy, 18, 16, C.floor0);
+    if (b) partIcon(ui, b.id, x, sy, b.cracked);
+    else {
+      // an empty mount: a dim socket
+      ui.fill(x + 5, sy + 5, 6, 6, C.plum);
+      ui.fill(x + 6, sy + 6, 4, 4, C.ink);
+    }
+    // the slot a towed part will go on
+    if (p.tow && PARTS[p.tow.part].mount === m) ui.fill(x, sy + 15, 16, 1, bolting ? C.gold : C.gold0);
+  });
   if (tow) {
-    ui.text(tow, sx - 6 - nameW - 12, 346, C.gold3, { align: 'right' });
-    if (bolting) ui.fill(sx - 6 - nameW - 12 - textWidth(tow), 355, Math.max(1, Math.round(textWidth(tow) * Math.min(1, p.bolt! / t.boltTime))), 1, C.gold);
+    ui.text(tow, slotX(0) - 6, sy + 4, C.gold3, { align: 'right' });
+    if (bolting) {
+      const tw = textWidth(tow);
+      ui.fill(slotX(0) - 6 - tw, sy + 13, Math.max(1, Math.round(tw * Math.min(1, p.bolt! / t.boltTime))), 1, C.gold);
+    }
   }
 
   // the speed gauge, bottom left (hideable)

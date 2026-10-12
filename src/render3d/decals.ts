@@ -2,7 +2,8 @@
 // offset, explicit renderOrder. The telegraph lanes are drawn by a shader on the sim's own pixel
 // grid (1 texel = 1 sim px = 5 cm), so a lane looks exactly like the 2D one: two edge lines and a
 // dither between them, dashed while it's still aiming, solid and flashing once locked. Enemy lanes
-// are danger red, the player's Burn lane is speed teal, a gate warning is red chevrons.
+// are danger red, the player's Burn lane is speed teal, a gate warning is red chevrons, an open exit
+// is gold chevrons pointing out through it (salvage gold: it's where the next part is).
 import * as THREE from 'three';
 import { C } from '../data/palette';
 import { pal, wx, wz, modelYaw } from './units';
@@ -71,7 +72,7 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-export type LaneMode = 'enemy' | 'burn' | 'gate';
+export type LaneMode = 'enemy' | 'burn' | 'gate' | 'exit';
 
 /** A lane on the floor from (x, y) along `angle`, in sim pixels. */
 export class Lane {
@@ -79,7 +80,7 @@ export class Lane {
   private mat: THREE.ShaderMaterial;
 
   constructor(mode: LaneMode) {
-    const colors = mode === 'burn' ? [C.speed3, C.speed1, C.speed4] : [C.danger3, C.danger1, C.dangerPink];
+    const colors = mode === 'burn' ? [C.speed3, C.speed1, C.speed4] : mode === 'exit' ? [C.gold, C.gold0, C.gold3] : [C.danger3, C.danger1, C.dangerPink];
     this.mat = new THREE.ShaderMaterial({
       vertexShader: LANE_VS,
       fragmentShader: LANE_FS,

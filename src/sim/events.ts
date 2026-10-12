@@ -1,6 +1,6 @@
 // What happened this tick, for the presentation layer (sound, particles, hit-stop, shake) and the
 // tests. The sim only appends; whoever runs it drains World.events after each tick.
-import type { PartId } from '../data/parts';
+import type { EnemyKind, PartId } from '../data/parts';
 import type { Gate } from '../data/arena';
 import type { Tier } from './world';
 
@@ -10,14 +10,21 @@ export type Zone = 'front' | 'side' | 'rear';
 export type SimEvent =
   | { k: 'rip'; tier: Tier; burn: boolean }
   | { k: 'rev' }
-  | { k: 'hit'; tier: Tier; id: number; x: number; y: number; dmg: number; zone: Zone }
+  | { k: 'hit'; tier: Tier; id: number; x: number; y: number; dmg: number; zone: Zone; clang?: boolean }
+  | { k: 'ram'; tier: Tier; id: number }
+  | { k: 'block'; id: number; x: number; y: number }
+  | { k: 'latch'; id: number }
+  | { k: 'sling' }
+  | { k: 'slide' }
+  | { k: 'snap'; id: number }
+  | { k: 'slide-e'; id: number }
   | { k: 'joust'; id: number; x: number; y: number }
   | { k: 'draft'; id: number; x: number; y: number }
   | { k: 'shove'; id: number; x: number; y: number }
   | { k: 'clank'; x: number; y: number; wall: boolean }
   | { k: 'scrape'; x: number; y: number }
   | { k: 'tear'; id: number; part: PartId; x: number; y: number }
-  | { k: 'wreck'; id: number; x: number; y: number; lost: PartId | null }
+  | { k: 'wreck'; id: number; kind: EnemyKind; x: number; y: number; lost: PartId[] }
   | { k: 'windup'; id: number; near: boolean; shove: boolean }
   | { k: 'lock'; id: number }
   | { k: 'charge'; id: number; shove: boolean }
@@ -42,4 +49,6 @@ export type SimEvent =
   | { k: 'gate'; gate: Gate['id'] }
   | { k: 'enter'; id: number; gate: Gate['id'] }
   | { k: 'cleared' }
+  | { k: 'yard-clear'; patched: boolean }
+  | { k: 'exit'; option: number }
   | { k: 'scrapped' };

@@ -1,5 +1,5 @@
 // Geometry for The Ring: circle-vs-rectangle contacts, line of sight and how far a lane runs.
-import type { ArenaDef, Rect } from '../data/arena';
+import type { ArenaDef, Gate, Rect } from '../data/arena';
 
 export interface Contact {
   /** push-out normal (unit) and depth */
@@ -33,13 +33,15 @@ export function circleRect(x: number, y: number, r: number, rc: Rect): Contact |
  * push inward, so nothing shoved deep into a wall can come out on the far side (the critic's
  * softlock); pillars are rectangles.
  */
-export function contacts(a: ArenaDef, x: number, y: number, r: number): Contact[] {
+export function contacts(a: ArenaDef, x: number, y: number, r: number, open: Gate[] = []): Contact[] {
   const out: Contact[] = [];
   const lo = a.wall + r, hx = a.w - a.wall - r, hy = a.h - a.wall - r;
-  if (x < lo) out.push({ nx: 1, ny: 0, depth: lo - x });
-  if (x > hx) out.push({ nx: -1, ny: 0, depth: x - hx });
-  if (y < lo) out.push({ nx: 0, ny: 1, depth: lo - y });
-  if (y > hy) out.push({ nx: 0, ny: -1, depth: y - hy });
+  // an open exit gate lets you out through its span of the wall
+  const through = (id: Gate['id']) => open.some((g) => g.id === id && (g.orient === 'v' ? y > g.rect.y && y < g.rect.y + g.rect.h : x > g.rect.x && x < g.rect.x + g.rect.w));
+  if (x < lo && !through('w')) out.push({ nx: 1, ny: 0, depth: lo - x });
+  if (x > hx && !through('e')) out.push({ nx: -1, ny: 0, depth: x - hx });
+  if (y < lo && !through('n')) out.push({ nx: 0, ny: 1, depth: lo - y });
+  if (y > hy && !through('s')) out.push({ nx: 0, ny: -1, depth: y - hy });
   for (const s of a.pillars) {
     const c = circleRect(x, y, r, s);
     if (c) out.push(c);

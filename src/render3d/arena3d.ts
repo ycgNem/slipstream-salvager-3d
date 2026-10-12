@@ -1,7 +1,10 @@
-// The Ring in 3D, built from src/data/arena (the same rectangles the sim collides with): the floor,
-// the walls (one instanced segment model), four pillars, four gates with sliding doors and warning
-// lamps, and outside the walls a skyline of scrap heaps and floodlight masts under a dusk sky.
-// Static except the gate doors and lamps. One directional light plus one hemisphere light.
+// A yard in 3D, built from src/data/arena (the same rectangles the sim collides with): the floor,
+// the walls (one instanced segment model), the obstacles (pillars, posts, towers, low barriers,
+// scrap blocks: each kind one instanced model), four gates with sliding doors and warning lamps,
+// and outside the walls a skyline of scrap heaps and floodlight masts under a dusk sky. Static
+// except the gate doors and lamps: red while a gate warns, gold and wide open once it's an exit
+// (DECISIONS #30). One directional light plus one hemisphere light. One Arena3D per yard; the
+// stage disposes it when the run moves on.
 import * as THREE from 'three';
 import type { ArenaDef, Gate } from '../data/arena';
 import { C } from '../data/palette';
@@ -32,25 +35,32 @@ function instanced(root: THREE.Object3D, placements: THREE.Matrix4[], node?: str
   return out;
 }
 
+/** the layer only the main camera draws (cosmetic things the mirror can skip) */
+export const LAYER_MAIN = 2;
+
 const place = (x: number, z: number, yaw = 0, sx = 1) =>
   new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(sx, 1, 1));
 
 export class Arena3D {
   group = new THREE.Group();
-  private doors: { part: InstancedPart; gate: Gate; side: -1 | 1; base: THREE.Matrix4 }[] = [];
+  /** both doors of every gate in one instanced mesh (the right door is the left door's mesh) */
+  private doorMesh: THREE.InstancedMesh | null = null;
+  private doors: { gate: Gate; index: number; side: -1 | 1; base: THREE.Matrix4; rel: THREE.Matrix4 }[] = [];
   private lamps: InstancedPart[] = [];
   private gates: Gate[];
   /** per gate: 0 closed .. 1 open */
   open: Record<string, number> = {};
   /** per gate: seconds left of the warning blink */
   warn: Record<string, number> = {};
+  /** per gate: it's an open exit to the next yard */
+  exit: Record<string, boolean> = {};
 
   constructor(private arena: ArenaDef, models: ModelSet) {
     this.gates = arena.gates;
     this.group.name = 'arena';
     this.buildFloor(models);
     this.buildWalls(models);
-    this.buildPillars(models);
+    this.buildObstacles(models);
     this.buildGates(models);
     this.buildBackdrop();
     this.buildLights();
@@ -122,9 +132,37 @@ export class Arena3D {
     for (const p of instanced(models.get('wall'), P)) this.group.add(p.mesh);
   }
 
-  private buildPillars(models: ModelSet) {
-    const P = this.arena.pillars.map((r) => place(wx(r.x + r.w / 2), wz(r.y + r.h / 2)));
-    for (const p of instanced(models.get('pillar'), P)) this.group.add(p.mesh);
+  /**
+   * The obstacles by footprint (2D data/arena.ts): 32x32 a pillar, 16x16 a post, 48x48 a tower, a
+   * 16 px wide run a low barrier (Long Lanes' walls: below the eye, so you see the next lane over
+   * it), anything else a scrap block (Jaw Yard's corners), each kind one instanced model.
+   */
+  private buildObstacles(models: ModelSet) {
+    const by: Record<'pillar' | 'post' | 'tower' | 'block' | 'barrier', THREE.Matrix4[]> = { pillar: [], post: [], tower: [], block: [], barrier: [] };
+    for (const r of this.arena.pillars) {
+      const cx = wx(r.x + r.w / 2), cz = wz(r.y + r.h / 2);
+      if (r.w === 32 && r.h === 32) by.pillar.push(place(cx, cz));
+      else if (r.w === 16 && r.h === 16) by.post.push(place(cx, cz));
+      else if (r.w === 48 && r.h === 48) by.tower.push(place(cx, cz));
+      else if (r.w === 16 || r.h === 16) {
+        // tiled with 16 px segments along its length, like the walls
+        const along = r.w > r.h, len = along ? r.w : r.h, n = Math.max(1, Math.round(len / 16)), seg = len / n;
+        for (let i = 0; i < n; i++) {
+          const c = (along ? r.x : r.y) + seg * (i + 0.5);
+          by.barrier.push(along ? place(wx(c), cz, 0, seg / 16) : place(cx, wz(c), Math.PI / 2, seg / 16));
+        }
+      } else {
+        // the block model is 112x64 px; any other size stretches to fit (long side along X)
+        const along = r.w >= r.h;
+        const m = place(cx, cz, along ? 0 : Math.PI / 2);
+        m.multiply(new THREE.Matrix4().makeScale((along ? r.w : r.h) / 112, 1, (along ? r.h : r.w) / 64));
+        by.block.push(m);
+      }
+    }
+    for (const [name, P] of Object.entries(by) as [keyof typeof by, THREE.Matrix4[]][]) {
+      if (!P.length) continue;
+      for (const p of instanced(models.get(name), P)) this.group.add(p.mesh);
+    }
   }
 
   private gatePlace(g: Gate) {
@@ -138,12 +176,21 @@ export class Arena3D {
     const root = models.get('gate');
     const P = this.gates.map((g) => this.gatePlace(g));
     for (const p of instanced(root, P, 'frame')) this.group.add(p.mesh);
-    for (const [node, side] of [['door_l', -1], ['door_r', 1]] as const) {
-      for (const part of instanced(root, P, node)) {
-        this.group.add(part.mesh);
-        this.gates.forEach((g, i) => this.doors.push({ part, gate: g, side, base: P[i] }));
-        part.mesh.userData.index = 0;
-      }
+    // the doors: one draw call for all eight leaves
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const left = meshesOf(root.getObjectByName('door_l'))[0], right = meshesOf(root.getObjectByName('door_r'))[0];
+    if (left && right) {
+      const im = new THREE.InstancedMesh(left.geometry, left.material, P.length * 2);
+      im.name = 'gate:doors';
+      const relL = new THREE.Matrix4().multiplyMatrices(inv, left.matrixWorld);
+      const relR = new THREE.Matrix4().multiplyMatrices(inv, right.matrixWorld);
+      this.gates.forEach((g, i) => {
+        this.doors.push({ gate: g, index: i, side: -1, base: P[i], rel: relL });
+        this.doors.push({ gate: g, index: i + P.length, side: 1, base: P[i], rel: relR });
+      });
+      this.doorMesh = im;
+      this.group.add(im);
     }
     // lamps: unlit, per-instance color so each gate blinks on its own
     for (const part of instanced(root, P, 'lamp')) {
@@ -156,6 +203,7 @@ export class Arena3D {
     for (const g of this.gates) {
       this.open[g.id] = 0;
       this.warn[g.id] = 0;
+      this.exit[g.id] = false;
     }
   }
 
@@ -215,6 +263,8 @@ export class Arena3D {
     );
     const lamps = new THREE.Mesh(lampGeo, new THREE.MeshBasicMaterial({ color: pal(C.gold3) }));
     lamps.name = 'floodlights';
+    // the main view only: the mirror looks low and back, and every draw call there counts
+    lamps.layers.set(LAYER_MAIN);
     this.group.add(lamps);
     // the sky
     const sky = new THREE.Mesh(new THREE.CylinderGeometry(120, 120, 70, 24, 1, true), new THREE.MeshBasicMaterial({ map: skyTexture(), side: THREE.BackSide, fog: false }));
@@ -236,25 +286,53 @@ export class Arena3D {
     this.group.add(sun, sun.target);
   }
 
-  /** Doors slide open while a Rammer comes through; lamps blink during the warning. */
+  /** Doors slide open while an enemy comes through, and for good once the gate is an exit; lamps
+   *  blink red during the warning and gold on an exit. */
   update(dt: number, time: number) {
+    for (const g of this.gates) if (this.exit[g.id]) this.open[g.id] = Math.min(1, this.open[g.id] + dt * 2.5);
     for (const d of this.doors) {
-      const i = this.gates.indexOf(d.gate);
       const o = this.open[d.gate.id];
-      const m = new THREE.Matrix4().multiplyMatrices(d.base, new THREE.Matrix4().makeTranslation(d.side * o * 0.78, 0, 0)).multiply(d.part.rel);
-      d.part.mesh.setMatrixAt(i, m);
-      d.part.mesh.instanceMatrix.needsUpdate = true;
+      const m = new THREE.Matrix4().multiplyMatrices(d.base, new THREE.Matrix4().makeTranslation(d.side * o * 0.78, 0, 0)).multiply(d.rel);
+      this.doorMesh!.setMatrixAt(d.index, m);
+    }
+    if (this.doorMesh) {
+      this.doorMesh.instanceMatrix.needsUpdate = true;
+      this.doorMesh.computeBoundingSphere();
     }
     for (const part of this.lamps) {
       this.gates.forEach((g, i) => {
         const w = this.warn[g.id];
         const on = w > 0 && Math.floor(time * 8) % 2 === 0;
-        part.mesh.setColorAt(i, pal(on ? C.danger3 : this.open[g.id] > 0.05 ? C.danger1 : C.danger0));
+        const exit = this.exit[g.id], blink = Math.floor(time * 3) % 2 === 0;
+        part.mesh.setColorAt(i, pal(exit ? (blink ? C.gold3 : C.gold) : on ? C.danger3 : this.open[g.id] > 0.05 ? C.danger1 : C.danger0));
       });
       part.mesh.instanceColor!.needsUpdate = true;
     }
     for (const g of this.gates) this.warn[g.id] = Math.max(0, this.warn[g.id] - dt);
   }
+}
+
+/** Free what an Arena3D made for itself (its instance buffers, the floor, the backdrop and sky);
+ *  the models' own geometry and materials are shared and stay. */
+export function disposeArena(a: Arena3D) {
+  a.group.traverse((o) => {
+    const im = o as THREE.InstancedMesh;
+    if (im.isInstancedMesh) {
+      im.dispose();
+      return;
+    }
+    const m = o as THREE.Mesh;
+    if (m.isMesh) {
+      m.geometry.dispose();
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+        const mm = mat as THREE.MeshLambertMaterial;
+        mm.map?.dispose();
+        mm.emissiveMap?.dispose();
+        mm.dispose();
+      }
+    }
+  });
+  a.group.removeFromParent();
 }
 
 /** Merge non-indexed geometries that share attributes (position, normal, uv?, color). */

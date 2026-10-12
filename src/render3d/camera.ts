@@ -50,6 +50,8 @@ export class CameraRig {
     this.rear.fov = vfov(REAR_HFOV, REAR.w / REAR.h);
     this.rear.updateProjectionMatrix();
     this.rear.layers.enable(1);
+    // the main camera also draws layer 2 (cosmetic things the mirror skips: arena3d LAYER_MAIN)
+    this.cam.layers.enable(2);
   }
 
   /** A hit's shake, in the 2D game's units (1..3 px there). */

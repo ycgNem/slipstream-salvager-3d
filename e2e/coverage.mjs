@@ -16,8 +16,16 @@ const NODES = {
   wall: ['wall'],
   gate: ['frame', 'door_l', 'door_r', 'lamp'],
   floor: ['floor'],
+  snapper: ['body', 'eyes', 'mount_front'],
+  treads: ['treads'],
+  plow: ['blade'],
+  jaws: ['jaw_l', 'jaw_r'],
+  post: ['post'],
+  tower: ['tower'],
+  block: ['block'],
+  barrier: ['barrier'],
 };
-const BUDGET = { rammer: 450, booster: 200, scrapper: 350, claw: 300, pillar: 150, wall: 60, gate: 250, floor: 2 };
+const BUDGET = { rammer: 450, booster: 200, scrapper: 350, claw: 300, pillar: 150, wall: 60, gate: 250, floor: 2, snapper: 350, treads: 200, plow: 120, jaws: 160, post: 120, tower: 200, block: 300, barrier: 60 };
 
 const srv = await serve();
 const { browser, page } = await launch();

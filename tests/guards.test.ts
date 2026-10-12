@@ -2,7 +2,7 @@
 // lose, brawling and waiting-to-counter must do worse than hit-and-run, and the Booster must flip
 // which route is best. If one of these fails, the identity is slipping, not just a number.
 import { describe, expect, it } from 'vitest';
-import { createWorld, type World } from '../src/sim/world';
+import { createWorld, giveBolted, type World } from '../src/sim/world';
 import { step } from '../src/sim/tick';
 import { brawlerBot, camperBot, hitAndRunBot, lanerBot, looperBot, matadorBot, turretBot, type Bot } from '../src/sim/bots';
 import { openArena } from './helpers';
@@ -63,7 +63,7 @@ describe('the Booster changes how you play (route flip)', () => {
   /** share of 40 s spent at Slipstream driving a route in The Ring, and how often it hit a wall */
   function slipShare(bot: Bot, booster: boolean) {
     const w = createWorld({ seed: 1, sandbox: true });
-    if (booster) w.player.part = 'booster';
+    if (booster) giveBolted(w, 'booster');
     let clanks = 0;
     for (let i = 0; i < 2400; i++) {
       step(w, bot(w));
@@ -88,7 +88,7 @@ describe('the Booster changes how you play (route flip)', () => {
   function tightestSlipCircle(booster: boolean): number {
     for (let r = 24; r <= 160; r += 2) {
       const w = createWorld({ sandbox: true, arena: openArena() });
-      if (booster) w.player.part = 'booster';
+      if (booster) giveBolted(w, 'booster');
       const cx = 2000, cy = 2000;
       Object.assign(w.player, { x: cx, y: cy + r, heading: 0, speed: 200 });
       let ok = true;
@@ -127,7 +127,7 @@ describe('the full slice (40 seeds, all three waves)', () => {
     for (let i = 0; i < 600 * 60 && !w.result; i++) {
       step(w, bot(w));
       w.events.length = 0;
-      if (!inside(w.player.x, w.player.y, w.t.playerRadius) || w.rammers.some((r) => !inside(r.x, r.y, w.t.rammerRadius))) outside = true;
+      if (!inside(w.player.x, w.player.y, w.t.playerRadius) || w.enemies.some((r) => !inside(r.x, r.y, w.t.rammerRadius))) outside = true;
     }
     return { cleared: w.result === 'cleared', outside, wave: w.wave.index };
   }

@@ -2,13 +2,14 @@
 // screenshotting the moments that matter (windups, locks, charges, rips, tears, bolts, hits) and
 // a frame every few seconds, with the event log. For judging the presentation in motion, and for
 // the critic. Writes e2e/out/watch/*.png and events.json.
-// Usage: node e2e/watch.mjs [seconds=40] [seed=7] [bot=hitAndRunBot] [--booster]
+// Usage: node e2e/watch.mjs [seconds=40] [seed=7] [bot=hitAndRunBot] [--booster|--treads|--plow|--jaws] [--yard=kennel]
 import fs from 'node:fs';
 import { serve, launch, ready, OUT } from './serve.mjs';
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const secs = Number(args[0] ?? 40), seed = Number(args[1] ?? 7), botName = args[2] ?? 'hitAndRunBot';
-const booster = process.argv.includes('--booster');
+const part = ['booster', 'treads', 'plow', 'jaws'].find((p) => process.argv.includes(`--${p}`)) ?? null;
+const yard = process.argv.find((a) => a.startsWith('--yard='))?.slice(7) ?? 'ring';
 const dir = `${OUT}/watch`;
 fs.rmSync(dir, { recursive: true, force: true });
 fs.mkdirSync(dir, { recursive: true });
@@ -18,15 +19,17 @@ const log = [];
 try {
   await page.goto(srv.url);
   await ready(page);
-  await page.evaluate(async ([seed, botName, booster]) => {
+  await page.evaluate(async ([seed, botName, part, yard]) => {
     const bots = await import('/src/sim/bots.ts');
+    const world = await import('/src/sim/world.ts');
     const a = window.__app;
-    a.startPlay(seed);
-    if (booster) a.play.world.player.part = 'booster';
+    a.startPlay(seed, yard);
+    a.play.record = false;
+    if (part) world.giveBolted(a.play.world, part);
     a.play.autopilot = bots[botName]();
     a.play.world.player.hull = 99;
     window.__seen = 0;
-  }, [seed, botName, booster]);
+  }, [seed, botName, part, yard]);
   const KEY = new Set(['lock', 'charge', 'tear', 'bolted', 'hurt', 'knock', 'shatter', 'wreck', 'joust', 'draft', 'stun']);
   const t0 = Date.now();
   let n = 0, lastShot = 0;

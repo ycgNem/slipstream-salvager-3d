@@ -57,6 +57,31 @@ SPEC = {
     "floor": dict(nodes={"floor": ("empty", (0, 0, 0)), "floor/": ("mesh", (0, 0, 0))},
                   budget=2, part=2, materials={"floor_tile"}, emissive={},
                   texture_forbid=pix.DANGER | pix.SALVAGE),
+    # Milestone 3: the Snapper, the three new parts (salvage gold), the yards' obstacles
+    "snapper": dict(
+        nodes={"snapper": ("empty", (0, 0, 0)), "body": ("mesh", (0, 0, 0)), "eyes": ("mesh", None),
+               "mount_front": ("empty", (0.40, 0, 0))},
+        budget=350, part=300, materials={"snapper_atlas", "snapper_eyes"},
+        emissive={"snapper_eyes": 15}, texture_forbid=pix.DANGER | pix.SALVAGE),
+    "treads": dict(nodes={"treads": ("empty", (0, 0, 0)), "treads/": ("mesh", (0, 0, 0))},
+                   budget=200, part=200, materials={"parts_atlas"}, emissive={}, texture_forbid=pix.DANGER),
+    "plow": dict(nodes={"plow": ("empty", (0, 0, 0)), "blade": ("mesh", (0, 0, 0))},
+                 budget=120, part=120, materials={"parts_atlas"}, emissive={}, texture_forbid=pix.DANGER),
+    "jaws": dict(nodes={"jaws": ("empty", (0, 0, 0)), "jaw_l": ("mesh", (0, 0.12, 0.16)),
+                        "jaw_r": ("mesh", (0, -0.12, 0.16))},
+                 budget=160, part=80, materials={"parts_atlas"}, emissive={}, texture_forbid=pix.DANGER),
+    "post": dict(nodes={"post": ("empty", (0, 0, 0)), "post/": ("mesh", (0, 0, 0))},
+                 budget=120, part=120, materials={"arena_atlas"}, emissive={},
+                 texture_forbid=pix.DANGER | pix.SALVAGE),
+    "tower": dict(nodes={"tower": ("empty", (0, 0, 0)), "tower/": ("mesh", (0, 0, 0))},
+                  budget=200, part=200, materials={"arena_atlas"}, emissive={},
+                  texture_forbid=pix.DANGER | pix.SALVAGE),
+    "block": dict(nodes={"block": ("empty", (0, 0, 0)), "block/": ("mesh", (0, 0, 0))},
+                  budget=300, part=300, materials={"arena_atlas"}, emissive={},
+                  texture_forbid=pix.DANGER | pix.SALVAGE),
+    "barrier": dict(nodes={"barrier": ("empty", (0, 0, 0)), "barrier/": ("mesh", (0, 0, 0))},
+                    budget=60, part=60, materials={"arena_atlas"}, emissive={},
+                    texture_forbid=pix.DANGER | pix.SALVAGE),
 }
 PAL_RGB = {c: i for i, c in enumerate(pix.PAL)}
 FAILS = []

@@ -8,7 +8,7 @@ import { createWorld, type InputFrame, type World, type WorldOpts } from '../src
 export function openArena(w = 4000, h = 4000, start = { x: 200, y: 2000, heading: 0 }): ArenaDef {
   const T = 16;
   return {
-    w, h, wall: T,
+    id: 'open', w, h, wall: T,
     solids: [
       { x: 0, y: 0, w, h: T }, { x: 0, y: h - T, w, h: T }, { x: 0, y: 0, w: T, h }, { x: w - T, y: 0, w: T, h },
     ],
@@ -47,7 +47,7 @@ export function until(w: World, input: InputFrame | ((w: World) => InputFrame), 
 export function stateHash(w: World): string {
   const r = (v: number) => Math.round(v * 1000);
   const p = w.player;
-  const parts = [w.tick, r(p.x), r(p.y), r(p.heading), r(p.speed), p.hull, p.part ?? '-', p.tow?.part ?? '-'];
-  for (const m of w.rammers) parts.push(m.id, r(m.x), r(m.y), r(m.face), m.hp, m.state, m.booster ? 1 : 0);
+  const parts = [w.tick, r(p.x), r(p.y), r(p.heading), r(p.speed), p.hull, Object.values(p.parts).map((b) => b!.id).join('+') || '-', p.tow?.part ?? '-'];
+  for (const m of w.enemies) parts.push(m.id, m.kind, r(m.x), r(m.y), r(m.face), m.hp, m.state, Object.values(m.parts).join('+'));
   return parts.join(',');
 }

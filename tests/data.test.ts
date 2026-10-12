@@ -25,7 +25,7 @@ describe('data', () => {
   });
 
   it('waves fit the arena, and wave 1 has the safety net', () => {
-    for (const w of WAVES) expect(w.rammers).toBeLessThanOrEqual(RING.gates.length);
+    for (const w of WAVES) expect(w.enemies.length).toBeLessThanOrEqual(RING.gates.length);
     expect(WAVES[0].safety).toBe(true);
   });
 

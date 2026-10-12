@@ -1,12 +1,17 @@
-// One encounter in first person: runs the vendored sim from the first-person input adapter, turns
-// its events into sound (positional for anything in the arena), effects in the world and on the 2D
-// layer, and draws the HUD, hints, markers, the pause and the results.
+// A run in first person (2D PLAN.md 8.1): runs the current yard's vendored sim from the
+// first-person input adapter, turns its events into sound (positional for anything in the arena),
+// effects in the world and on the 2D layer, draws the HUD, hints, markers and the exit signs, wipes
+// from yard to yard as you drive out through an exit, and shows the pause and the run's results.
 import * as THREE from 'three';
 import { C } from '../data/palette';
 import { wrapAngle } from '../data/dirs';
+import { MOUNTS } from '../data/mounts';
+import { PARTS } from '../data/parts';
+import { RUN_LENGTH, YARDS, type YardId } from '../data/yards';
 import { DEBUG_KEYS, keyLabel, type Input } from '../engine/input';
 import type { Audio } from '../engine/audio/audio';
-import { createWorld, DT, type InputFrame, type World } from '../sim/world';
+import { DT, giveBolted, type Bolted, type InputFrame, type World } from '../sim/world';
+import { finishYard, newRun, yardWorld, type Run } from '../sim/run';
 import { step } from '../sim/tick';
 import { revving } from '../sim/rip';
 import type { SimEvent } from '../sim/events';
@@ -17,6 +22,8 @@ import { wx, wz } from '../render3d/units';
 import { drawHud } from '../ui3d/hud';
 import { Hints } from '../ui3d/hints';
 import { Overlay, drawMarkers, drawMirrorFrame } from '../ui3d/overlay';
+import { drawExitSigns, type SignBox } from '../ui3d/signs3d';
+import { partIcon } from '../ui3d/icons';
 import type { UI } from '../ui/ui';
 import { LIVE, TuningPanel } from './tuning';
 import { loadBest, loadSeenHints, saveBest, saveSeenHints, type Settings } from './settings';
@@ -33,10 +40,23 @@ export interface PlayHost {
   unlockPointer(): void;
 }
 
-/** Events that happen at a Rammer: their sound comes from it. */
-const AT_RAMMER = new Set(['windup', 'lock', 'charge', 'cancel', 'slam', 'shove', 'bump', 'joust', 'wreck', 'hit', 'tear']);
+/** Events that happen at an enemy: their sound comes from it. */
+const AT_ENEMY = new Set(['windup', 'lock', 'charge', 'cancel', 'slam', 'shove', 'bump', 'joust', 'wreck', 'hit', 'tear', 'snap', 'slide-e', 'block', 'latch', 'ram']);
+
+/** seconds the wipe between yards takes */
+const WIPE = 0.8;
+/** how much of the screen the wipe covers, 0..1, t seconds in */
+const wipeCover = (t: number) => (t / WIPE < 0.5 ? (t / WIPE) * 2 : (1 - t / WIPE) * 2);
+
+/** ?yard=kennel (debug builds): start a run in that yard, for testing and the screenshot sweep */
+function startYard(): YardId {
+  if (!DEBUG_KEYS || typeof location === 'undefined') return 'ring';
+  const y = new URLSearchParams(location.search).get('yard');
+  return y && y in YARDS ? (y as YardId) : 'ring';
+}
 
 export class Play {
+  run: Run;
   world: World;
   steer = new Steer();
   prev: Snap;
@@ -45,6 +65,14 @@ export class Play {
   overlay = new Overlay();
   paused = false;
   endT = 0;
+  /** the wipe between yards: seconds in, and whether the next yard is in yet */
+  wipe: { t: number; swapped: boolean } | null = null;
+  /** the run's end has been recorded */
+  private runDone = false;
+  /** this run counts toward the best record (the screenshot scenes turn it off) */
+  record = true;
+  /** the run has been counted (on its first tick) */
+  private counted = false;
   private ripLatch = false;
   private boltLatch = false;
   /** a bolt press that the sim refused (mid-lunge, right after the tear) is retried this long (s) */
@@ -71,10 +99,13 @@ export class Play {
   private rstate = new Map<number, string>();
   /** turn scrub: the squeal's cooldown */
   private scrubbing = false;
+  /** where the exit signs were drawn this frame */
+  private signBoxes: SignBox[] = [];
 
-  constructor(private host: PlayHost, seed = (Math.random() * 1e9) | 0) {
-    this.world = createWorld({ seed, tuning: LIVE.t, flat: LIVE.flat });
-    if (LIVE.booster) this.world.player.part = 'booster';
+  constructor(private host: PlayHost, seed = (Math.random() * 1e9) | 0, start: YardId = startYard()) {
+    this.run = newRun(seed, start);
+    this.world = yardWorld(this.run, { tuning: LIVE.t, flat: LIVE.flat });
+    for (const id of LIVE.parts) giveBolted(this.world, id);
     this.prev = snapshot(this.world);
     this.steer.reset(this.world.player.heading);
     this.hints = new Hints(loadSeenHints(), host.settings.hints);
@@ -86,12 +117,55 @@ export class Play {
   get keys() {
     const pad = this.host.input.usingPad;
     const b = this.host.input.binds;
-    return { rip: pad ? 'A' : keyLabel(b.rip[0]).toUpperCase(), bolt: pad ? 'Y' : keyLabel(b.bolt[0]).toUpperCase(), look: pad ? 'LB' : keyLabel(b.look[0]).toUpperCase() };
+    return {
+      rip: pad ? 'A' : keyLabel(b.rip[0]).toUpperCase(),
+      bolt: pad ? 'Y' : keyLabel(b.bolt[0]).toUpperCase(),
+      look: pad ? 'LB' : keyLabel(b.look[0]).toUpperCase(),
+      brake: pad ? 'LT' : keyLabel(b.down[0]).toUpperCase(),
+    };
+  }
+
+  /** The next yard: fold this one into the run and build the next world (mid-wipe). */
+  private nextYard() {
+    finishYard(this.run, this.world);
+    this.world = yardWorld(this.run, { tuning: LIVE.t, flat: LIVE.flat });
+    this.prev = snapshot(this.world);
+    this.steer.reset(this.world.player.heading);
+    this.host.stage.setWorld(this.world);
+    this.overlay.texts = [];
+    this.overlay.banner = null;
+    this.rstate.clear();
+    this.endT = 0;
+  }
+
+  /** The run is over (won or scrapped): fold in the last yard and record the best. */
+  private endRun() {
+    if (this.runDone) return;
+    this.runDone = true;
+    finishYard(this.run, this.world);
+    if (!this.record) return;
+    const b = loadBest(), r = this.run;
+    const yards = r.over === 'won' ? RUN_LENGTH : r.depth - 1;
+    b.bestYards = Math.max(b.bestYards, yards);
+    if (r.over === 'won') {
+      b.wins++;
+      if (!b.bestWinTicks || r.totals.ticks < b.bestWinTicks) b.bestWinTicks = r.totals.ticks;
+    }
+    saveBest(b);
   }
 
   /** One fixed tick. */
   tick() {
-    if (this.paused || this.frozen) return;
+    if (this.paused || this.frozen || this.wipe) return;
+    if (!this.counted) {
+      // a run counts once it's actually played
+      this.counted = true;
+      if (this.record) {
+        const b = loadBest();
+        b.runs++;
+        saveBest(b);
+      }
+    }
     const input = this.host.input, w = this.world;
     let frame: InputFrame;
     if (this.autopilot) frame = this.autopilot(w);
@@ -131,9 +205,9 @@ export class Play {
       if (this.steer.scrub && !this.scrubbing) this.host.audio.sfx('skid', 0.45, 1.3);
       this.scrubbing = this.steer.scrub;
       // a Rammer behind you that goes into its skid has its back to you: the tear is on
-      for (const r of w.rammers) {
+      for (const r of w.enemies) {
         // (not the one that just hit you: red and gold at once says nothing)
-        if (r.state === 'skid' && this.rstate.get(r.id) === 'charge' && this.outOfView(r.id) && this.hurt <= 0) this.mirrorGold = 0.7;
+        if (r.kind === 'rammer' && r.parts.rear === 'booster' && r.state === 'skid' && this.rstate.get(r.id) === 'charge' && this.outOfView(r.id) && this.hurt <= 0) this.mirrorGold = 0.7;
         this.rstate.set(r.id, r.state);
       }
     } else this.steer.held();
@@ -143,21 +217,21 @@ export class Play {
     w.events.length = 0;
   }
 
-  /** Whether a Rammer is outside the main view (behind or beside you). */
+  /** Whether an enemy is outside the main view (behind or beside you). */
   private outOfView(id: number): boolean {
     return !this.inCam(id, this.host.stage.camera);
   }
 
   private inCam(id: number, cam: THREE.Camera): boolean {
-    const v = this.host.stage.rammerView(id)?.pos;
+    const v = this.host.stage.enemyPos(id);
     if (!v) return false;
     const n = v.clone().project(cam);
     return n.z < 1 && n.z > -1 && Math.abs(n.x) < 0.97 && Math.abs(n.y) < 0.97;
   }
 
-  private rammerPos(id: number): THREE.Vector3 | null {
-    const r = this.world.rammers.find((x) => x.id === id);
-    return r ? new THREE.Vector3(wx(r.x), 0.5, wz(r.y)) : null;
+  private enemyPos(id: number): THREE.Vector3 | null {
+    const r = this.world.enemies.find((x) => x.id === id);
+    return r ? new THREE.Vector3(wx(r.x), r.kind === 'rammer' ? 0.5 : 0.3, wz(r.y)) : null;
   }
 
   private flashEdge(color: number, k: number, t = 0.18) {
@@ -169,9 +243,9 @@ export class Play {
     const a = this.host.audio, w = this.world, stage = this.host.stage, ov = this.overlay, rig = stage.rig;
     this.hints.event(e);
     stage.onEvent(e, w);
-    // sounds that happen at a Rammer come from it
+    // sounds that happen at an enemy come from it
     const id = 'id' in e ? (e as { id: number }).id : -1;
-    const src = AT_RAMMER.has(e.k) ? this.rammerPos(id) ?? ('x' in e ? new THREE.Vector3(wx((e as { x: number }).x), 0.5, wz((e as { y: number }).y)) : null) : null;
+    const src = AT_ENEMY.has(e.k) ? this.enemyPos(id) ?? ('x' in e ? new THREE.Vector3(wx((e as { x: number }).x), 0.5, wz((e as { y: number }).y)) : null) : null;
     const sfx = (name: string, v = 1, pitch = 1) => (src ? a.sfxAt(name, 'r' + id, src, v, pitch) : a.sfx(name, v, pitch));
     const at = (x: number, y: number, h = 1.1) => new THREE.Vector3(wx(x), h, wz(y));
     switch (e.k) {
@@ -181,6 +255,14 @@ export class Play {
         break;
       case 'rev': a.sfx('rev'); break;
       case 'hit':
+        if (e.clang) {
+          // a plowed front: nothing gets through
+          ov.text('CLANG! JOUST IT', C.mist, at(e.x, e.y));
+          rig.addShake(2);
+          sfx('clank');
+          sfx('slam', 0.5);
+          break;
+        }
         if (e.dmg === 0) {
           ov.text('HIT ITS BACK!', C.white, at(e.x, e.y));
           rig.addShake(1);
@@ -204,9 +286,40 @@ export class Play {
         this.flashEdge(C.speed3, 0.5);
         a.sfx('slipstream');
         break;
+      case 'ram':
+        // the Plow: driving into one is a hit (the hit itself follows)
+        rig.addShake(e.tier === 'slip' ? 2 : 1);
+        sfx('shove', 0.8, 0.8);
+        break;
+      case 'block':
+        ov.texts = ov.texts.filter((x) => x.text !== 'GLANCED');
+        ov.text('BLOCKED!', C.white, at(e.x, e.y));
+        rig.addShake(3);
+        this.white = 0.06;
+        sfx('slam');
+        sfx('clank', 0.7);
+        break;
+      case 'latch':
+        // the Jaws bite on: the view whips round it (stage.ts)
+        rig.addShake(2);
+        sfx('bolt_tick', 1, 0.7);
+        sfx('hit', 0.6, 1.4);
+        break;
+      case 'sling':
+        ov.text('SLUNG!', C.speed4, null, 320, 230);
+        this.flashEdge(C.speed3, 0.45);
+        a.sfx('slipstream', 0.7, 1.2);
+        break;
+      case 'slide':
+        // your power-slide on the Grip Treads
+        rig.addShake(1);
+        a.sfx('skid', 0.8, 1.3);
+        break;
+      case 'slide-e': sfx('skid', 0.5, 1.6); break;
+      case 'snap': sfx('charge', 0.5, 1.6); break;
       case 'joust':
         // a joust is also a front hit: its GLANCED gives way to the joust
-        ov.texts = ov.texts.filter((x) => x.text !== 'GLANCED');
+        ov.texts = ov.texts.filter((x) => x.text !== 'GLANCED' && x.text !== 'CLANG! JOUST IT');
         ov.text('JOUST!', C.white, at(e.x, e.y));
         rig.addShake(3);
         this.white = 0.08;
@@ -226,9 +339,9 @@ export class Play {
         sfx('tear');
         break;
       case 'wreck':
-        if (e.lost) ov.text('PART WRECKED', C.lilac, at(e.x, e.y));
-        rig.addShake(3);
-        sfx('wreck');
+        if (e.lost.length) ov.text(e.lost.length > 1 ? 'PARTS WRECKED' : 'PART WRECKED', C.lilac, at(e.x, e.y));
+        rig.addShake(e.kind === 'rammer' ? 3 : 2);
+        sfx('wreck', e.kind === 'rammer' ? 1 : 0.8, e.kind === 'rammer' ? 1 : 1.2);
         break;
       case 'windup': sfx(e.near || e.shove ? 'windup_near' : 'windup'); break;
       case 'lock': sfx('lock'); break;
@@ -250,7 +363,7 @@ export class Play {
         a.sfx('shatter');
         break;
       case 'knock':
-        ov.text('KNOCKED LOOSE', C.gold2, null, 320, 240);
+        ov.text(`${PARTS[e.part].name.toUpperCase()} KNOCKED LOOSE`, C.gold2, null, 320, 240);
         this.flashEdge(C.danger3, 0.7, 0.25);
         this.hurt = 0.1;
         rig.addShake(3);
@@ -280,16 +393,25 @@ export class Play {
         a.sfx('bolted');
         break;
       case 'bolt-cancel': a.sfx('bolt_cancel'); break;
-      case 'wave':
-        ov.showBanner(`WAVE ${e.n}`, e.n === 1 ? 'TEAR OFF A BOOSTER, BOLT IT ON' : e.n === 3 ? 'LAST WAVE' : '', w.t.bannerTime);
+      case 'wave': {
+        const r = this.run, y = YARDS[r.yard], last = e.n === w.waves.length;
+        if (e.n === 1) ov.showBanner(y.name, r.yard === 'ring' ? 'TEAR OFF A BOOSTER, BOLT IT ON' : `YARD ${r.depth} OF ${RUN_LENGTH}`, w.t.bannerTime + 0.4);
+        else ov.showBanner(`WAVE ${e.n}`, last ? 'LAST WAVE' : '', w.t.bannerTime);
         a.sfx('wave');
         break;
+      }
       case 'gate': {
         const g = w.arena.gates.find((x) => x.id === e.gate)!;
         a.sfxAt('gate', 'gate' + g.id, new THREE.Vector3(wx(g.spawn.x), 1, wz(g.spawn.y)));
         break;
       }
       case 'enter': break;
+      case 'yard-clear':
+        ov.showBanner('YARD CLEARED', e.patched ? '+1 HULL   DRIVE OUT THROUGH A GATE' : 'DRIVE OUT THROUGH A GATE', 2.4);
+        this.flashEdge(C.gold, 0.3, 0.2);
+        a.sfx('cleared');
+        break;
+      case 'exit': a.sfx('wave', 0.8, 1.2); break;
       case 'cleared': a.sfx('cleared'); this.recordClear(); break;
       case 'scrapped': a.sfx('scrapped'); break;
       default: {
@@ -301,6 +423,7 @@ export class Play {
   }
 
   private recordClear() {
+    if (!this.record) return;
     const b = loadBest(), w = this.world;
     b.clears++;
     if (!b.bestTicks || w.stats.ticks < b.bestTicks) b.bestTicks = w.stats.ticks;
@@ -311,10 +434,15 @@ export class Play {
   /** Pointer lock went away (Esc, alt-tab): pause, unless a menu is already up. */
   lockLost() {
     this.lockLostAt = this.time;
-    if (!this.paused && !this.world.result && !this.tuning.open && !this.frozen) this.paused = true;
+    if (!this.paused && !this.over && !this.tuning.open && !this.frozen) this.paused = true;
   }
 
-  /** Per frame: pause, the tuning panel, effects, hints, sound. */
+  /** The run has ended (won or scrapped); a yard driven out of is not an end. */
+  get over(): boolean {
+    return this.world.result === 'cleared' || this.world.result === 'scrapped';
+  }
+
+  /** Per frame: pause, the tuning panel, the wipe, effects, hints, sound. */
   update(dt: number) {
     const input = this.host.input;
     const locked = input.look.locked;
@@ -328,26 +456,37 @@ export class Play {
       this.tuning.open = !this.tuning.open;
       if (this.tuning.open) this.host.unlockPointer();
     }
-    if (input.wasPressed('pause') && !this.world.result && this.time - this.lockLostAt > 0.3) {
+    if (input.wasPressed('pause') && !this.over && this.time - this.lockLostAt > 0.3) {
       this.paused = !this.paused;
       input.consume('pause');
       input.consume('back');
       if (this.paused) this.host.unlockPointer();
     }
     // a click on the view (not on a menu) takes the mouse for steering
-    if (!locked && !this.paused && !this.world.result && !this.tuning.open && !this.frozen && input.mouse.pressed[0]) this.host.lockPointer();
+    if (!locked && !this.paused && !this.over && !this.tuning.open && !this.frozen && input.mouse.pressed[0]) this.host.lockPointer();
     this.host.audio.setDuck(this.paused);
     this.time += dt;
+    // drove out through an exit: wipe to the next yard
+    if (this.world.result === 'exit' && !this.wipe && !this.frozen) this.wipe = { t: 0, swapped: false };
+    if (this.wipe && !this.frozen && !this.paused) {
+      this.wipe.t += dt;
+      if (!this.wipe.swapped && this.wipe.t >= WIPE / 2) {
+        this.nextYard();
+        this.wipe.swapped = true;
+      }
+      if (this.wipe.t >= WIPE) this.wipe = null;
+    }
+    if (this.over) this.endRun();
     if (!this.paused && !this.frozen) this.effects(dt);
-    if (this.world.result) this.endT += dt;
+    if (this.over) this.endT += dt;
     const p = this.world.player;
     const a = this.host.audio;
-    a.engine(p.speed / this.world.t.burnMax, revving(this.world), !this.paused && !this.world.result);
-    // the listener rides the camera; each Rammer's sounds follow it
+    a.engine(p.speed / this.world.t.burnMax, revving(this.world), !this.paused && !this.over);
+    // the listener rides the camera; each enemy's sounds follow it
     const cam = this.host.stage.camera;
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
     a.setListener(cam.position, fwd);
-    for (const r of this.world.rammers) a.place('r' + r.id, { x: wx(r.x), y: 0.5, z: wz(r.y) });
+    for (const r of this.world.enemies) a.place('r' + r.id, { x: wx(r.x), y: r.kind === 'rammer' ? 0.5 : 0.3, z: wz(r.y) });
   }
 
   /** Age the 2D effects, flashes and hints (per frame in play; per tick in the scripted scenes). */
@@ -355,7 +494,7 @@ export class Play {
     const p = this.world.player;
     this.overlay.update(dt, p.tier === 'slip' ? Math.max(0, Math.min(1, (p.speed - this.world.t.slipAt) / 60 + 0.35)) : 0);
     // the mirror hint only when the mirror really shows it (beside you only the arrow does)
-    const behind = this.world.rammers.some((r) => r.state === 'windup' && this.outOfView(r.id) && this.inCam(r.id, this.host.stage.rig.rear));
+    const behind = this.world.enemies.some((r) => r.state === 'windup' && this.outOfView(r.id) && this.inCam(r.id, this.host.stage.rig.rear));
     if (this.host.input.isDown('look')) this.hints.looked();
     this.hints.update(this.world, dt, behind);
     this.mirrorGold = Math.max(0, this.mirrorGold - dt);
@@ -367,10 +506,11 @@ export class Play {
   /** Pose the stage and draw the 3D passes. */
   render(alpha: number, dt: number, time: number) {
     const host = this.host, stage = host.stage;
-    const a = this.paused || this.frozen ? 1 : alpha;
+    const still = this.paused || this.frozen || !!this.wipe;
+    const a = still ? 1 : alpha;
     stage.rig.shakeOn = host.settings.shake;
     const look = this.forceLook || (!this.paused && host.input.isDown('look'));
-    stage.sync(this.world, this.prev, a, this.paused || this.frozen ? 0 : dt, time, { lookBack: look, thrust: this.thrust, hurt: this.hurt });
+    stage.sync(this.world, this.prev, a, still ? 0 : dt, time, { lookBack: look, thrust: this.thrust, hurt: this.hurt });
     host.view.renderMain(stage.scene, stage.camera, stage.vm);
     host.view.renderRear(stage.scene, stage.rig.rear);
   }
@@ -380,7 +520,7 @@ export class Play {
     const p = this.world.player, t = this.world.t;
     const edge = p.speed > t.slipAt ? Math.min(1, 0.35 + (p.speed - t.slipAt) / 120) : 0;
     return {
-      edge: this.paused ? 0 : edge,
+      edge: this.paused || this.wipe ? 0 : edge,
       flashColor: this.edge.color,
       flash: this.edge.t > 0 ? this.edge.k * Math.min(1, this.edge.t / 0.1) : 0,
       whiteout: this.white > 0 ? 0.35 : 0,
@@ -390,33 +530,57 @@ export class Play {
 
   drawUI(ui: UI, dt: number) {
     const w = this.world, stage = this.host.stage, s = this.host.settings;
-    const showHud = !this.hudHidden && !w.result && !this.paused;
-    this.overlay.draw(ui, stage.camera, w, {
-      // against the sim's heading, not the interpolated one, so a key turn doesn't make it flicker
-      reticle: showHud && !this.autopilot ? wrapAngle(this.steer.demand - w.player.heading) : null,
-      scrub: this.steer.scrub,
-      hfov: stage.rig.hfov,
-      stun: w.player.stun > 0,
-      time: this.time,
-      rear: true,
-    });
-    if (!w.result && !this.paused) {
-      if (this.mirrorGold > 0 && Math.floor(this.mirrorGold * 10) % 2 === 0) drawMirrorFrame(ui, C.gold2);
-      drawMarkers(ui, stage.camera, stage.rig.rear, w, (id) => stage.rammerView(id)?.pos ?? null, this.time);
-      this.hints.draw(ui, w, stage.camera, this.keys, true, this.overlay.drawn);
+    // while the wipe covers the screen, only the yard's name shows
+    const covered = !!this.wipe && wipeCover(this.wipe.t) >= 0.83;
+    const showHud = !this.hudHidden && !this.over && !this.paused && !covered;
+    if (!covered) {
+      this.signBoxes = !this.paused && !this.over ? drawExitSigns(ui, stage.camera, w, this.run, this.time, true) : [];
+      this.overlay.draw(ui, stage.camera, w, {
+        // against the sim's heading, not the interpolated one, so a key turn doesn't make it flicker
+        reticle: showHud && !this.autopilot && !w.result ? wrapAngle(this.steer.demand - w.player.heading) : null,
+        scrub: this.steer.scrub,
+        hfov: stage.rig.hfov,
+        stun: w.player.stun > 0,
+        time: this.time,
+        rear: true,
+      });
+      if (!w.result && !this.paused) {
+        if (this.mirrorGold > 0 && Math.floor(this.mirrorGold * 10) % 2 === 0) drawMirrorFrame(ui, C.gold2);
+        drawMarkers(ui, stage.camera, stage.rig.rear, w, (id) => stage.enemyPos(id), this.time);
+        this.hints.draw(ui, w, stage.camera, this.keys, true, [...this.overlay.drawn, ...this.signBoxes]);
+      }
+      if (showHud) drawHud(ui, w, { gauge: s.gauge, keys: this.keys, boltHint: this.hints.current === 'bolt', label: `YARD ${this.run.depth}/${RUN_LENGTH}  WAVE ${Math.min(w.waves.length, w.wave.index + 1)}/${w.waves.length}` });
+      this.overlay.drawBanner(ui);
     }
-    if (showHud) drawHud(ui, w, { gauge: s.gauge, keys: this.keys, boltHint: this.hints.current === 'bolt' });
-    if (DEBUG_KEYS) this.tuning.draw(ui, w.t, (on) => (w.flat = on), (on) => (w.player.part = on ? 'booster' : null), dt);
-    if (w.flat) ui.text('FLAT MODE', 6, 80, C.white, { shadow: C.ink });
-    if (!this.host.input.look.locked && !this.paused && !w.result && !this.tuning.open && !this.frozen && !this.autopilot)
+    if (DEBUG_KEYS) this.tuning.draw(ui, w.t, (on) => (w.flat = on), (id, on) => (on ? giveBolted(w, id) : delete w.player.parts[PARTS[id].mount]), dt);
+    if (w.flat) ui.text('FLAT MODE', 6, 100, C.white, { shadow: C.ink });
+    if (!this.host.input.look.locked && !this.paused && !w.result && !this.tuning.open && !this.frozen && !this.autopilot && !this.wipe)
       ui.text('CLICK TO STEER WITH THE MOUSE', 320, 300, C.mist, { align: 'center', shadow: C.ink });
+    if (this.wipe) this.drawWipe(ui);
     if (this.paused) this.drawPause(ui);
-    else if (w.result && this.endT > 1.2) this.drawResults(ui);
+    else if (this.over && this.endT > 1.2) this.drawResults(ui);
+  }
+
+  /** Ink bars sweep across and back while the next yard is built; the next yard's name at full cover. */
+  private drawWipe(ui: UI) {
+    const f = this.wipe!.t / WIPE;
+    const cover = wipeCover(this.wipe!.t);
+    const rows = 12;
+    for (let i = 0; i < rows; i++) {
+      const wdt = Math.round(Math.min(1, cover * 1.4 - (i % 3) * 0.08) * 640);
+      if (wdt > 0) ui.fill(f < 0.5 ? 0 : 640 - wdt, i * 30, wdt, 30, C.ink);
+    }
+    const next = this.wipe!.swapped ? this.run.yard : this.run.options[this.world.exitChoice ?? 0] ?? this.run.yard;
+    if (cover > 0.8) ui.text(YARDS[next].name, 320, 172, C.white, { align: 'center', scale: 2 });
   }
 
   restart() {
     const fresh = new Play(this.host);
-    Object.assign(this, { world: fresh.world, prev: fresh.prev, steer: fresh.steer, hints: fresh.hints, overlay: fresh.overlay, paused: false, endT: 0, time: 0, recent: [], hurt: 0, white: 0, mirrorGold: 0, rstate: new Map(), scrubbing: false });
+    Object.assign(this, {
+      run: fresh.run, world: fresh.world, prev: fresh.prev, steer: fresh.steer, hints: fresh.hints, overlay: fresh.overlay,
+      paused: false, endT: 0, time: 0, recent: [], hurt: 0, white: 0, mirrorGold: 0, rstate: new Map(), scrubbing: false,
+      wipe: null, runDone: false, counted: false,
+    });
     this.host.lockPointer();
   }
 
@@ -447,26 +611,34 @@ export class Play {
   }
 
   private drawResults(ui: UI) {
-    const w = this.world, s = w.stats, cleared = w.result === 'cleared';
+    const r = this.run, T = r.totals, won = r.over === 'won';
     ui.dim();
-    const x = 220, y = 84, pw = 200, ph = 196;
+    const x = 200, y = 60, pw = 240, ph = 236;
     ui.panel(x, y, pw, ph, 'dark');
-    ui.text(cleared ? 'YARD CLEARED' : 'SCRAPPED', x + pw / 2, y + 10, cleared ? C.white : C.danger2, { align: 'center', scale: 2 });
-    const secs = s.ticks / 60;
+    ui.text(won ? 'RUN CLEARED' : 'SCRAPPED', x + pw / 2, y + 10, won ? C.white : C.mist, { align: 'center', scale: 2 });
+    ui.text(won ? 'ALL FIVE YARDS' : `IN ${YARDS[r.yard].name}, YARD ${r.depth} OF ${RUN_LENGTH}`, x + pw / 2, y + 30, C.mist, { align: 'center' });
+    const secs = T.ticks / 60;
     const rows: [string, string][] = [
       ['TIME', `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`],
-      ['HULL LEFT', `${Math.max(0, w.player.hull)}/${w.t.hull}`],
-      ['BOOSTERS TORN OFF', String(s.tears)],
-      ['SLIPSTREAM HITS', String(s.slipHits)],
-      ['TOP SPEED', String(Math.round(s.topSpeed))],
+      ['YARDS CLEARED', `${won ? RUN_LENGTH : r.depth - 1}/${RUN_LENGTH}`],
+      ['PARTS TORN OFF', String(T.tears)],
+      ['WRECKED', String(T.wrecks)],
+      ['JOUSTS', String(T.jousts)],
+      ['TOP SPEED', String(Math.round(T.topSpeed))],
     ];
     rows.forEach(([k, v], i) => {
-      ui.text(k, x + 16, y + 40 + i * 13, C.mist);
-      ui.text(v, x + pw - 16, y + 40 + i * 13, C.white, { align: 'right' });
+      ui.text(k, x + 16, y + 46 + i * 12, C.mist);
+      ui.text(v, x + pw - 16, y + 46 + i * 12, C.white, { align: 'right' });
     });
+    // the build you finished with
+    ui.text('BUILD', x + 16, y + 122, C.mist);
+    const parts = MOUNTS.map((m) => r.loadout?.parts[m]).filter((b): b is Bolted => !!b);
+    if (!parts.length) ui.text('BARE CHASSIS', x + pw - 16, y + 122, C.lilac, { align: 'right' });
+    parts.forEach((b, i) => partIcon(ui, b.id, x + pw - 16 - (parts.length - i) * 18 + 2, y + 118, b.cracked));
     const b = loadBest();
-    if (b.clears) ui.text(`BEST CLEAR ${Math.floor(b.bestTicks / 3600)}:${String(Math.floor((b.bestTicks / 60) % 60)).padStart(2, '0')}`, x + pw / 2, y + 112, C.lilac, { align: 'center' });
-    if (ui.button('r-again', x + 16, y + 130, pw - 32, 20, 'AGAIN')) this.restart();
-    if (ui.button('r-title', x + 16, y + 156, pw - 32, 20, 'TITLE')) this.host.toTitle();
+    const best = b.wins ? `BEST WIN ${Math.floor(b.bestWinTicks / 3600)}:${String(Math.floor((b.bestWinTicks / 60) % 60)).padStart(2, '0')}   WINS ${b.wins}` : `BEST: ${b.bestYards} YARD${b.bestYards === 1 ? '' : 'S'} CLEARED`;
+    ui.text(best, x + pw / 2, y + 146, C.lilac, { align: 'center' });
+    if (ui.button('r-again', x + 16, y + 168, pw - 32, 20, 'AGAIN')) this.restart();
+    if (ui.button('r-title', x + 16, y + 194, pw - 32, 20, 'TITLE')) this.host.toTitle();
   }
 }

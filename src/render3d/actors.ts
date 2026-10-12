@@ -1,13 +1,16 @@
-// The things that move: Rammers (body, booster, eyes as rigid parts, with every state the 2D sprites
-// had: stalk, crouched windup, leaning charge, skid, stunned, stripped limp, crackling when hurt),
-// loose and towed boosters, the player's own robot (seen only by the rear camera), the tow cable,
-// wreck debris, and the claw view model in the lower middle of the first-person view.
+// The player's side of the things that move: your own robot with its bolted parts (seen only by the
+// rear camera), the tow cable, wreck debris, and the first-person view models: the claw in the lower
+// middle of the view, and the parts you've bolted on that you'd see from the seat (the Plow's blade
+// across the bottom, the Jaws either side of the claw, the Grip Treads' guards in the corners).
+// Enemies and loose parts are instanced batches (enemies3d.ts).
 import * as THREE from 'three';
 import { C } from '../data/palette';
-import type { Rammer, Tier } from '../sim/world';
-import { type ModelSet, instance, disposeInstance, materialsOf } from './models';
-import { pal, wx, wz, modelYaw, lerp, clamp01 } from './units';
-import { Lane, type Shadows } from './decals';
+import type { Bolted, Tier } from '../sim/world';
+import type { MountSlot } from '../data/mounts';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { type ModelSet, instance, disposeInstance, materialsOf, meshesOf } from './models';
+import { pal, wx, wz, modelYaw, lerp } from './units';
+import type { Shadows } from './decals';
 
 /** the layer only the rear camera draws: the player's own body */
 export const LAYER_SELF = 1;
@@ -45,159 +48,7 @@ function setEmissive(mats: THREE.MeshLambertMaterial[], c: THREE.Color, k: numbe
   }
 }
 
-// ---------------------------------------------------------------- Rammer
-
-export class RammerView {
-  root = new THREE.Group();
-  tilt = new THREE.Group();
-  model: THREE.Group;
-  booster: THREE.Group;
-  shadow: THREE.Mesh;
-  lane = new Lane('enemy');
-  private bodyMats: THREE.MeshLambertMaterial[];
-  private eyeMats: THREE.MeshLambertMaterial[];
-  private shellMats: THREE.MeshLambertMaterial[];
-  private nozzleMats: THREE.MeshLambertMaterial[];
-  flash = 0;
-  /** world position (for sound and markers) */
-  pos = new THREE.Vector3();
-  face = 0;
-
-  constructor(public id: number, models: ModelSet, shadows: Shadows, mountRear: THREE.Vector3) {
-    this.model = instance(models.get('rammer'));
-    this.booster = instance(models.get('booster'));
-    this.booster.position.copy(mountRear);
-    this.model.add(this.booster);
-    this.tilt.add(this.model);
-    this.root.add(this.tilt);
-    this.shadow = shadows.make(1.5);
-    this.root.add(this.shadow);
-    this.root.name = `rammer:${id}`;
-    this.bodyMats = materialsOf(this.model.getObjectByName('body'));
-    this.eyeMats = materialsOf(this.model.getObjectByName('eyes'));
-    this.shellMats = materialsOf(this.booster.getObjectByName('shell'));
-    this.nozzleMats = materialsOf(this.booster.getObjectByName('nozzle_glow'));
-    for (const m of [...this.bodyMats, ...this.shellMats]) m.emissive = new THREE.Color(0);
-  }
-
-  /** Pose the Rammer from the sim (interpolated position and facing). */
-  sync(r: Rammer, x: number, y: number, face: number, time: number, dt: number, laneInfo: { angle: number; len: number; width: number } | null) {
-    this.flash = Math.max(0, this.flash - dt);
-    this.face = face;
-    this.root.position.set(wx(x), 0, wz(y));
-    this.root.rotation.y = modelYaw(face);
-    this.pos.set(wx(x), 0.5, wz(y));
-    const tl = this.tilt;
-    tl.position.set(0, 0, 0);
-    tl.rotation.set(0, 0, 0);
-    tl.scale.set(1, 1, 1);
-    const stripped = !r.booster;
-    let eye: number = C.danger3, nozzle = 0, glint = 0;
-    switch (r.state) {
-      case 'enter':
-      case 'stalk': {
-        const pace = stripped ? 5 : 9;
-        tl.position.y = Math.abs(Math.sin(time * pace + this.id)) * 0.012;
-        // stripped: it limps
-        if (stripped) tl.rotation.x = Math.sin(time * pace * 0.5 + this.id) * 0.06;
-        break;
-      }
-      case 'windup': {
-        const k = clamp01(r.t / Math.max(0.01, r.windup - r.lock));
-        tl.position.y = -0.04 * k;
-        tl.scale.y = 1 - 0.07 * k;
-        tl.rotation.z = -0.05 * k; // nose down, coiled
-        const j = r.locked ? 0.014 : 0.007;
-        tl.position.x = (Math.sin(time * 71 + this.id) * 0.5) * j;
-        tl.position.z = (Math.sin(time * 53 + this.id * 3) * 0.5) * j;
-        eye = r.locked && Math.floor(time * 12) % 2 ? C.dangerPink : C.danger3;
-        nozzle = r.locked ? 1.5 : 0.6 * k;
-        glint = r.locked ? 1 : 0;
-        break;
-      }
-      case 'charge':
-        tl.rotation.z = -0.13;
-        tl.position.y = 0.01;
-        eye = C.dangerPink;
-        nozzle = r.shove ? 0.5 : 2;
-        glint = 1;
-        break;
-      case 'skid': {
-        const k = 1 - clamp01(r.t / r.skidFor);
-        tl.rotation.z = 0.07 * k;
-        if (r.slammed) {
-          // stunned: it wobbles, eyes flicker
-          tl.rotation.x = Math.sin(time * 14) * 0.08 * (0.4 + k);
-          eye = Math.floor(time * 10) % 3 === 0 ? C.danger0 : C.danger1;
-        } else eye = C.danger1;
-        glint = 1;
-        break;
-      }
-    }
-    if (r.hp <= 1 && Math.floor(time * 7 + this.id) % 4 === 0) eye = C.danger0;
-    // the booster: present until torn off; it glints gold while the back is open (DECISIONS 2D #60)
-    this.booster.visible = r.booster;
-    setGlow(this.eyeMats, eye);
-    setEmissive(this.nozzleMats, pal(C.orange), 0.4 + nozzle);
-    const g = glint ? 0.35 + 0.35 * (Math.floor(time * 10) % 2) : 0;
-    setEmissive(this.shellMats, pal(C.gold), g);
-    if (this.flash > 0) setEmissive(this.bodyMats, pal(C.white), 1.4);
-    else setEmissive(this.bodyMats, pal(C.ink), 0);
-    // the telegraph lane
-    if (laneInfo && r.state === 'windup') this.lane.set(x, y, laneInfo.angle, laneInfo.len, laneInfo.width, r.locked, time);
-    else this.lane.hide();
-  }
-
-  /** Where the booster's nozzle is in the world (plume particles). */
-  nozzleWorld(out: THREE.Vector3): THREE.Vector3 {
-    return this.booster.localToWorld(out.set(-0.5, 0, 0));
-  }
-
-  dispose() {
-    disposeInstance(this.model);
-    this.lane.dispose();
-    this.root.removeFromParent();
-  }
-}
-
-// ---------------------------------------------------------------- loose and towed parts
-
-export class PartView {
-  root = new THREE.Group();
-  model: THREE.Group;
-  shadow: THREE.Mesh;
-  private shellMats: THREE.MeshLambertMaterial[];
-
-  constructor(models: ModelSet, shadows: Shadows, public id: number) {
-    this.model = instance(models.get('booster'));
-    // centre the thruster over its own origin (its origin is the mount flange)
-    this.model.position.x = 0.25;
-    this.root.add(this.model);
-    this.shadow = shadows.make(0.7);
-    this.root.add(this.shadow);
-    this.root.name = `part:${id}`;
-    this.shellMats = materialsOf(this.model);
-  }
-
-  /** On the floor (bobbing, turning slowly, glinting gold) or swinging on the cable. */
-  sync(x: number, y: number, yaw: number, lift: number, cracked: boolean, time: number) {
-    this.root.position.set(wx(x), 0, wz(y));
-    this.model.position.y = lift;
-    this.root.rotation.y = yaw;
-    const glint = Math.floor(time * 3 + this.id) % 6 === 0 ? 0.5 : 0.08;
-    for (const m of this.shellMats) {
-      if (m.userData.glow) continue;
-      m.emissive.copy(pal(C.gold));
-      m.emissiveIntensity = glint;
-      m.color.copy(cracked ? pal(C.mist) : new THREE.Color(1, 1, 1));
-    }
-  }
-
-  dispose() {
-    disposeInstance(this.model);
-    this.root.removeFromParent();
-  }
-}
+// ---------------------------------------------------------------- the tow cable
 
 /** The cable from the robot's back to the towed part: a 1-px line (at 640x360) that sags. */
 export class Cable {
@@ -233,15 +84,41 @@ export class Cable {
 
 // ---------------------------------------------------------------- the player's own robot
 
+/** Merge a model's meshes that share one material into one mesh (its attached parts left alone). */
+function mergeChassis(root: THREE.Object3D, keep: THREE.Object3D[]) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const kept = (o: THREE.Object3D) => keep.some((k) => k === o || k.getObjectById(o.id));
+  const meshes = meshesOf(root).filter((m) => !kept(m) && !Array.isArray(m.material));
+  const byMat = new Map<THREE.Material, THREE.Mesh[]>();
+  for (const m of meshes) byMat.set(m.material as THREE.Material, [...(byMat.get(m.material as THREE.Material) ?? []), m]);
+  for (const [mat, list] of byMat) {
+    if (list.length < 2) continue;
+    const geos = list.map((m) => {
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      return g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+    });
+    const merged = mergeGeometries(geos);
+    if (!merged) continue;
+    const one = new THREE.Mesh(merged, mat);
+    one.name = 'chassis';
+    for (const m of list) m.removeFromParent();
+    root.add(one);
+  }
+}
+
 export class PlayerRig {
   root = new THREE.Group();
   body: THREE.Group;
   booster: THREE.Group;
+  /** the Grip Treads' guards over your own treads (the mirror sees them) */
+  treads: THREE.Group;
   shadow: THREE.Mesh;
   mountRear: THREE.Vector3;
   private bodyMats: THREE.MeshLambertMaterial[];
   private nozzleMats: THREE.MeshLambertMaterial[];
   private shellMats: THREE.MeshLambertMaterial[];
+  private treadMats: THREE.MeshLambertMaterial[];
 
   constructor(models: ModelSet, shadows: Shadows) {
     this.body = instance(models.get('scrapper'));
@@ -249,27 +126,32 @@ export class PlayerRig {
     this.booster = instance(models.get('booster'));
     this.booster.position.copy(this.mountRear);
     this.body.add(this.booster);
+    this.treads = instance(models.get('treads'));
+    this.body.add(this.treads);
     this.root.add(this.body);
     this.shadow = shadows.make(1.0);
     this.root.add(this.shadow);
     this.root.name = 'player';
-    this.bodyMats = materialsOf(this.body).filter((m) => !this.boosterMats().includes(m));
+    const own = [...materialsOf(this.booster), ...materialsOf(this.treads)];
+    this.bodyMats = materialsOf(this.body).filter((m) => !own.includes(m));
     this.nozzleMats = materialsOf(this.booster.getObjectByName('nozzle_glow'));
     this.shellMats = materialsOf(this.booster.getObjectByName('shell'));
+    this.treadMats = materialsOf(this.treads);
+    // the chassis and its own treads are one mesh (one draw call in the mirror, not three)
+    mergeChassis(this.body, [this.booster, this.treads]);
+    this.bodyMats = materialsOf(this.body).filter((m) => !own.includes(m));
     // only the rear camera sees your own body; the shadow is fine from both
     this.body.traverse((o) => o.layers.set(LAYER_SELF));
   }
 
-  private boosterMats() {
-    return materialsOf(this.booster);
-  }
-
-  sync(x: number, y: number, heading: number, part: boolean, cracked: boolean, thrust: number, hurt: number, time: number) {
+  sync(x: number, y: number, heading: number, parts: Partial<Record<MountSlot, Bolted>>, thrust: number, hurt: number, time: number) {
     this.root.position.set(wx(x), 0, wz(y));
     this.root.rotation.y = modelYaw(heading);
-    this.booster.visible = part;
+    this.booster.visible = parts.rear?.id === 'booster';
+    this.treads.visible = parts.sides?.id === 'treads';
     setEmissive(this.nozzleMats, pal(C.orange), 0.3 + thrust * 1.5);
-    for (const m of this.shellMats) m.color.copy(cracked ? pal(C.mist) : new THREE.Color(1, 1, 1));
+    for (const m of this.shellMats) m.color.copy(parts.rear?.cracked ? pal(C.mist) : new THREE.Color(1, 1, 1));
+    for (const m of this.treadMats) m.color.copy(parts.sides?.cracked ? pal(C.mist) : new THREE.Color(1, 1, 1));
     if (hurt > 0) setEmissive(this.bodyMats, pal(C.danger3), 1.2);
     else setEmissive(this.bodyMats, pal(C.ink), 0);
     // treads rumble
@@ -368,6 +250,11 @@ export interface ClawPose {
   stunned: boolean;
   /** towing: how far the part has swung off straight-behind (rad, + = to your right), else null */
   towSwing: number | null;
+  /** the parts you've bolted on that you'd see from the seat */
+  front: Bolted | null;
+  sides: Bolted | null;
+  /** swinging round a bitten enemy with the Jaws */
+  latched: boolean;
 }
 
 export class ClawRig {
@@ -391,6 +278,15 @@ export class ClawRig {
   private tether: THREE.Line;
   private tetherPts = new Float32Array(8 * 3);
   private swingSide = 0;
+  /** your bolted front and side parts as view models (DECISIONS #31) */
+  private vmPlow: THREE.Group;
+  private vmJaws: THREE.Group;
+  private vmTreads: THREE.Group;
+  private vmJawL?: THREE.Object3D;
+  private vmJawR?: THREE.Object3D;
+  private vjl0 = 0;
+  private vjr0 = 0;
+  private bite = 0;
 
   constructor(models: ModelSet) {
     this.model = instance(models.get('claw'));
@@ -400,7 +296,7 @@ export class ClawRig {
     this.model.rotation.order = 'YXZ';
     this.model.scale.setScalar(0.85);
     this.pivot.add(this.model);
-    this.pivot.position.set(0.0, -0.27, -0.2);
+    this.pivot.position.set(0.0, -0.3, -0.2);
     this.anchor.add(this.pivot);
     this.arm = this.model.getObjectByName('arm');
     this.jawL = this.model.getObjectByName('jaw_l');
@@ -424,6 +320,36 @@ export class ClawRig {
     this.tether.visible = false;
     this.anchor.add(this.tether);
     this.anchor.name = 'claw-anchor';
+    // the parts: the model faces +X, camera forward is -Z
+    const vm = (name: 'plow' | 'jaws' | 'treads', x: number, y: number, z: number, scale: number) => {
+      const g = instance(models.get(name));
+      g.rotation.order = 'YXZ';
+      g.rotation.y = Math.PI / 2;
+      g.position.set(x, y, z);
+      g.scale.setScalar(scale);
+      g.visible = false;
+      g.name = `vm-${name}`;
+      this.anchor.add(g);
+      return g;
+    };
+    // the blade's top edge across the bottom of the view, ahead of the claw, tipped toward you
+    // so you see its gold lip and face rather than its braced back
+    this.vmPlow = vm('plow', 0, -0.8, -0.95, 1);
+    this.vmPlow.rotation.z = 0.5;
+    // the mandibles either side of the claw, a little bigger than its own jaws
+    this.vmJaws = vm('jaws', 0, -0.46, -0.36, 0.95);
+    this.vmJawL = this.vmJaws.getObjectByName('jaw_l');
+    this.vmJawR = this.vmJaws.getObjectByName('jaw_r');
+    this.vjl0 = this.vmJawL?.rotation.y ?? 0;
+    this.vjr0 = this.vmJawR?.rotation.y ?? 0;
+    // the tread guards' front ends in the bottom corners (spread out to the edges of the view)
+    this.vmTreads = vm('treads', 0, -0.66, -0.62, 1);
+    this.vmTreads.scale.set(1, 1, 1.75);
+  }
+
+  /** A cracked part is grey (it shatters on the next hit). */
+  private crack(g: THREE.Group, cracked: boolean) {
+    for (const m of materialsOf(g)) if (!m.userData.glow) m.color.copy(cracked ? pal(C.mist) : new THREE.Color(1, 1, 1));
   }
 
   /** Follow the camera and animate the rigid parts. */
@@ -452,7 +378,7 @@ export class ClawRig {
     else if (pose.lunge > 0) reach = 0.15 * Math.sin(Math.min(1, (1 - pose.lunge) * 1.4) * Math.PI);
     this.kick = lerp(this.kick, reach, 1 - Math.exp(-dt / 0.025));
     const shudder = pose.speed01 > 0.55 ? Math.sin(time * 97) * 0.0025 * pose.speed01 : 0;
-    this.pivot.position.set(this.sway * 0.05 + this.swing * 0.05, -0.27 + shudder - (pose.stunned ? 0.04 : 0) - this.swing * 0.05, -0.2 - this.kick);
+    this.pivot.position.set(this.sway * 0.05 + this.swing * 0.05, -0.3 + shudder - (pose.stunned ? 0.04 : 0) - this.swing * 0.05, -0.2 - this.kick);
     // pitched up so the jaws and the tier glow sit in the lower middle of the view
     this.pivot.rotation.set(0.32 - this.swing * 0.2, 0, this.sway * 0.25 + (pose.stunned ? Math.sin(time * 12) * 0.1 : 0));
     this.model.rotation.x = this.twist;
@@ -479,6 +405,29 @@ export class ClawRig {
     (this.halo.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     this.haloMat.color.copy(c);
     this.halo.visible = pose.tier !== 'crawl' || pose.revving;
+    // the parts you can see from the seat
+    const front = pose.front?.id ?? null;
+    this.vmPlow.visible = front === 'plow';
+    this.vmJaws.visible = front === 'jaws';
+    this.vmTreads.visible = pose.sides?.id === 'treads';
+    if (this.vmPlow.visible) {
+      this.crack(this.vmPlow, !!pose.front?.cracked);
+      // it shoves forward with a lunge, and judders with speed
+      this.vmPlow.position.set(this.sway * 0.03, -0.8 + shudder * 2, -0.95 - this.kick * 0.5);
+    }
+    if (this.vmJaws.visible) {
+      this.crack(this.vmJaws, !!pose.front?.cracked);
+      // they gape with the claw, slam shut on a bite, and clamp hard while you swing round
+      this.bite = lerp(this.bite, pose.latched ? -0.15 : this.open * 1.3, 1 - Math.exp(-dt / 0.03));
+      if (this.vmJawL) this.vmJawL.rotation.y = this.vjl0 + this.bite * 0.6;
+      if (this.vmJawR) this.vmJawR.rotation.y = this.vjr0 - this.bite * 0.6;
+      this.vmJaws.position.set(this.sway * 0.04, -0.46 + shudder, -0.36 - this.kick * 0.8);
+    }
+    if (this.vmTreads.visible) {
+      this.crack(this.vmTreads, !!pose.sides?.cracked);
+      this.vmTreads.position.set(0, -0.66 + Math.sin(time * 40) * 0.003 * (0.3 + pose.speed01), -0.62);
+      this.vmTreads.rotation.z = this.sway * 0.05;
+    }
     // the tether: the cable from your back runs past you; when the towed part swings wide on a turn
     // it whips into the bottom corner of the view on that side (THREEJS-NOTES / M1 step 3)
     const swingWant = pose.towSwing === null ? 0 : Math.max(-1, Math.min(1, pose.towSwing / 0.45));

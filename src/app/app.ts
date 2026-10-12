@@ -1,12 +1,15 @@
 // The app: one canvas, WebGL for the world (src/render3d/view.ts: 640x360, whole-number scale,
 // letterboxed), a 640x360 2D layer for text and menus drawn with the UI kit, the fixed 60 Hz loop,
 // and the screens (title, play, settings). The title is a live attract mode: a strategy bot plays
-// the real sim under a slow orbit camera, behind "Slipstream Salvager 3D / first person".
+// the real sim in one of the run's yards under a slow orbit camera, behind "Slipstream Salvager 3D /
+// first person".
 import { C } from '../data/palette';
 import { GameLoop } from '../engine/loop';
 import { ACTION_LABELS, DEBUG_KEYS, Input, keyLabel, type Action } from '../engine/input';
 import { Audio } from '../engine/audio/audio';
-import { createWorld, type World } from '../sim/world';
+import type { World } from '../sim/world';
+import { newRun, yardWorld } from '../sim/run';
+import type { YardId } from '../data/yards';
 import { step } from '../sim/tick';
 import { hitAndRunBot, type Bot } from '../sim/bots';
 import { UI } from '../ui/ui';
@@ -106,7 +109,7 @@ export class App {
     v.begin();
     const m = v.toLogical(this.input.mouse.x, this.input.mouse.y);
     const inPlay = this.screen === 'play' && this.play;
-    this.ui.begin(v.uictx, this.input, m.x, m.y, dt, !inPlay || this.play!.paused || !!this.play!.world.result || this.play!.tuning.open);
+    this.ui.begin(v.uictx, this.input, m.x, m.y, dt, !inPlay || this.play!.paused || this.play!.over || this.play!.tuning.open);
     let post = { edge: 0, flashColor: C.ink as number, flash: 0, whiteout: 0, rear: false };
     if (this.screen === 'loading' || !this.stage) {
       this.ui.fill(0, 0, VIEW_W, VIEW_H, C.ink);
@@ -144,7 +147,10 @@ export class App {
   }
 
   private newDemo() {
-    const world = createWorld({ seed: (Math.random() * 1e9) | 0 });
+    // a different yard each time round
+    const yards: YardId[] = ['ring', 'kennel', 'lanes', 'pit', 'jaws', 'heap'];
+    const seed = (Math.random() * 1e9) | 0;
+    const world = yardWorld(newRun(seed, yards[seed % yards.length]));
     world.player.hull = 99;
     this.demo = { world, bot: hitAndRunBot(), prev: snapshot(world) };
     this.stage.setWorld(world);
@@ -159,9 +165,9 @@ export class App {
     return SCENES;
   }
 
-  startPlay(seed?: number) {
+  startPlay(seed?: number, yard?: YardId) {
     this.demo = null;
-    this.play = new Play(this, seed);
+    this.play = new Play(this, seed, yard);
     this.screen = 'play';
     this.lockPointer();
   }
@@ -210,13 +216,15 @@ export class App {
     ui.fill(80, 238, 480, lines.length * 11 + 6, C.ink);
     lines.forEach((l, i) => ui.text(l, 320, 242 + i * 11, C.mist, { align: 'center' }));
     const b = loadBest();
-    if (b.clears) {
-      const t = `CLEARED ${b.clears}x   BEST ${Math.floor(b.bestTicks / 3600)}:${String(Math.floor((b.bestTicks / 60) % 60)).padStart(2, '0')}   BEST HULL ${b.bestHull}`;
+    if (b.runs) {
+      const t = b.wins
+        ? `RUNS ${b.runs}   WINS ${b.wins}   BEST WIN ${Math.floor(b.bestWinTicks / 3600)}:${String(Math.floor((b.bestWinTicks / 60) % 60)).padStart(2, '0')}`
+        : `RUNS ${b.runs}   BEST: ${b.bestYards} YARD${b.bestYards === 1 ? '' : 'S'} CLEARED`;
       ui.fill(160, 286, 320, 13, C.ink);
       ui.text(t, 320, 289, C.lilac, { align: 'center' });
     }
     ui.fill(0, 334, VIEW_W, 26, C.ink);
-    ui.text('FIRST SLICE - ONE ARENA, ONE ENEMY, ONE PART', 320, 340, C.slate, { align: 'center' });
+    ui.text('A RUN OF FIVE YARDS - TEAR PARTS OFF, BOLT THEM ON', 320, 340, C.slate, { align: 'center' });
     if (DEBUG_KEYS) ui.text('` TUNING IN PLAY', 636, 350, C.slate, { align: 'right' });
   }
 

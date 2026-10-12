@@ -115,6 +115,6 @@ describe('determinism', () => {
     const a = createWorld({ seed: 7 }), b = createWorld({ seed: 7 });
     for (const f of log) { tick(a, f); tick(b, f); }
     expect(stateHash(a)).toBe(stateHash(b));
-    expect(a.rammers.length + a.stats.wrecks).toBeGreaterThan(0);
+    expect(a.enemies.length + a.stats.wrecks).toBeGreaterThan(0);
   });
 });

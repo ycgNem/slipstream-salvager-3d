@@ -1,138 +1,39 @@
 {
   "from": "C:/Users/jacks/Documents/slipstream-salvager",
-  "commit": "e0504afd144c8304200ccc0e63c39086bcddc751",
+  "commit": "297e40c9fe3d4a993b20f91e0e302b3628b630dd",
   "files": {
-    "src/sim/arena.ts": "337498ef9f643367",
-    "src/sim/body.ts": "4fd3006f75c0c9f7",
-    "src/sim/bots.ts": "db57ef7b47cc95fd",
-    "src/sim/events.ts": "34c9e1dc4ef7884a",
-    "src/sim/rammer.ts": "3ab2b6d1f2c26d18",
-    "src/sim/rip.ts": "0658869e513cbedf",
-    "src/sim/salvage.ts": "b2e0d03ca91d165b",
-    "src/sim/tick.ts": "c4b853c24f4323a6",
-    "src/sim/waves.ts": "e58858000986c8bf",
-    "src/sim/world.ts": "0769ddbc6661bd9f",
-    "src/data/arena.ts": "b0bbb4b6e846e807",
+    "src/sim/arena.ts": "9682f8991f94183b",
+    "src/sim/body.ts": "5d3d60e9ce9eb13b",
+    "src/sim/bots.ts": "a421391c6903dce9",
+    "src/sim/enemies.ts": "69005981ec2549bd",
+    "src/sim/events.ts": "aa0bc926b3f68037",
+    "src/sim/rammer.ts": "aa2a5353a7d4388d",
+    "src/sim/rip.ts": "60c1662a1f05403f",
+    "src/sim/run.ts": "55d61548312e3ab5",
+    "src/sim/salvage.ts": "f02a569195a5b300",
+    "src/sim/snapper.ts": "2f55f97f7492b250",
+    "src/sim/tick.ts": "523c83aa64ec0008",
+    "src/sim/waves.ts": "0d9044088d4eb08c",
+    "src/sim/world.ts": "6435854b37f16c98",
+    "src/data/arena.ts": "259630d09b38c4a3",
     "src/data/dirs.ts": "e50c395ed9033ade",
     "src/data/mounts.ts": "89ab5dcd37ccba4c",
     "src/data/palette.ts": "94812f9ed05b8715",
-    "src/data/parts.ts": "fa6e60fa1c2b88d4",
-    "src/data/tuning.ts": "f0541cba3eddcd35",
-    "src/data/waves.ts": "e7ece9933b1fa640",
+    "src/data/parts.ts": "497c5708a25e7f76",
+    "src/data/tuning.ts": "58931f3f4b60506c",
+    "src/data/waves.ts": "a5c6b8a9a5d5d448",
+    "src/data/yards.ts": "0639e4eaea47b466",
     "src/render/names.ts": "080159a487327fcc",
-    "tests/combat.test.ts": "f8bcb1a4e9929c9f",
-    "tests/data.test.ts": "6d992f16511598f8",
-    "tests/guards.test.ts": "c59ff9e2f737aa83",
-    "tests/helpers.ts": "c784543b697cc279",
-    "tests/movement.test.ts": "c5d82db1d1253a15",
-    "tests/salvage.test.ts": "78f834f9b599290d",
-    "scripts/bots.ts": "74c6c3522d7f5760"
+    "src/ui/signs.ts": "7f7d2e838f086dfb",
+    "tests/combat.test.ts": "87c6abf8943ffa80",
+    "tests/data.test.ts": "080a0569bb926e7c",
+    "tests/guards.test.ts": "a191a7c4217afd25",
+    "tests/helpers.ts": "2904c9ba283a4027",
+    "tests/m3.test.ts": "e44d11db2b8f12ca",
+    "tests/movement.test.ts": "6492c6cec24b2228",
+    "tests/run.test.ts": "50de678b883af519",
+    "tests/salvage.test.ts": "02fcf908c9421b81",
+    "scripts/bots.ts": "47cc0502c9282dd5"
   },
-  "divergences": {
-    "src/sim/arena.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "9682f8991f94183b"
-    },
-    "src/sim/body.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "5d3d60e9ce9eb13b"
-    },
-    "src/sim/bots.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "a421391c6903dce9"
-    },
-    "src/sim/events.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "aa0bc926b3f68037"
-    },
-    "src/sim/rammer.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "aa2a5353a7d4388d"
-    },
-    "src/sim/rip.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "60c1662a1f05403f"
-    },
-    "src/sim/salvage.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "f02a569195a5b300"
-    },
-    "src/sim/tick.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "523c83aa64ec0008"
-    },
-    "src/sim/waves.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "0d9044088d4eb08c"
-    },
-    "src/sim/world.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "6435854b37f16c98"
-    },
-    "src/data/arena.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "b0647f1d25fd2bce"
-    },
-    "src/data/parts.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "497c5708a25e7f76"
-    },
-    "src/data/tuning.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "58931f3f4b60506c"
-    },
-    "src/data/waves.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "a5c6b8a9a5d5d448"
-    },
-    "tests/combat.test.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "87c6abf8943ffa80"
-    },
-    "tests/data.test.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "080a0569bb926e7c"
-    },
-    "tests/guards.test.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "a191a7c4217afd25"
-    },
-    "tests/helpers.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "2904c9ba283a4027"
-    },
-    "tests/movement.test.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "6492c6cec24b2228"
-    },
-    "tests/salvage.test.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "02fcf908c9421b81"
-    },
-    "scripts/bots.ts": {
-      "decision": "#21",
-      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
-      "theirs": "47cc0502c9282dd5"
-    }
-  }
+  "divergences": {}
 }

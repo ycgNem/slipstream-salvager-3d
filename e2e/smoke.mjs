@@ -79,7 +79,7 @@ try {
   const slow = await page.evaluate(() => window.__app.play.world.player.speed);
   check(slow < 60, `S brakes (speed ${slow.toFixed(0)})`);
   await wait(2500);
-  const rammers = await page.evaluate(() => window.__app.play.world.rammers.length);
+  const rammers = await page.evaluate(() => window.__app.play.world.enemies.filter((e) => e.kind === 'rammer').length);
   check(rammers >= 1, `wave 1 sends a Rammer in (${rammers})`);
   await shot('03-wave1');
 

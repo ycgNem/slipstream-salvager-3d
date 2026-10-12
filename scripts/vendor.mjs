@@ -17,7 +17,7 @@ import path from 'node:path';
 
 export const SRC_2D = process.env.SS2D_DIR ?? path.resolve('..', 'slipstream-salvager');
 /** what is vendored (directories are taken whole, at the 2D commit) */
-export const VENDORED = ['src/sim', 'src/data', 'src/render/names.ts', 'tests/combat.test.ts', 'tests/data.test.ts', 'tests/guards.test.ts', 'tests/helpers.ts', 'tests/movement.test.ts', 'tests/salvage.test.ts', 'scripts/bots.ts'];
+export const VENDORED = ['src/sim', 'src/data', 'src/render/names.ts', 'src/ui/signs.ts', 'tests/combat.test.ts', 'tests/data.test.ts', 'tests/guards.test.ts', 'tests/helpers.ts', 'tests/m3.test.ts', 'tests/movement.test.ts', 'tests/run.test.ts', 'tests/salvage.test.ts', 'scripts/bots.ts'];
 
 const git = (...args) => execFileSync('git', ['--no-optional-locks', '-C', SRC_2D, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 });
 export const hash = (text) => createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex').slice(0, 16);

@@ -3,32 +3,49 @@
 // robot meets walls (glancing slides, head-on clanks).
 import { clamp, lerp } from '../engine/rng';
 import { dirHyst, wrapAngle } from '../data/dirs';
-import { PARTS, type AttackMode, type StatKey } from '../data/parts';
-import { contacts } from './arena';
+import { PARTS, type AttackMode, type PartDef, type StatKey } from '../data/parts';
+import { MOUNTS } from '../data/mounts';
+import { contacts, pushOut } from './arena';
 import { DT, tierOf, type InputFrame, type World } from './world';
 
 export interface BodyStats {
   topSpeed: number;
   turnLow: number;
   turnHigh: number;
+  scrubLat: number;
+  accHigh: number;
+}
+
+/** The defs of every part bolted on, in mount order (none in flat mode: there parts never change how you move). */
+export function activeParts(w: World): PartDef[] {
+  if (w.flat) return [];
+  const out: PartDef[] = [];
+  for (const m of MOUNTS) {
+    const b = w.player.parts[m];
+    if (b) out.push(PARTS[b.id]);
+  }
+  return out;
+}
+
+/** Does a bolted part give this behavior? (never in flat mode) */
+export function hasBehavior<K extends keyof PartDef['behavior']>(w: World, key: K, value: NonNullable<PartDef['behavior'][K]>): boolean {
+  return activeParts(w).some((d) => d.behavior[key] === value);
 }
 
 /**
- * The chassis numbers with the bolted part's multipliers applied. Flat mode ignores them: there a
+ * The chassis numbers with every bolted part's multipliers applied. Flat mode ignores them: there a
  * part never changes how you move (it adds damage instead; DECISIONS #50).
  */
 export function playerStats(w: World): BodyStats {
   const t = w.t;
-  const s: BodyStats = { topSpeed: t.topSpeed, turnLow: t.turnLow, turnHigh: t.turnHigh };
-  const part = w.player.part && !w.flat ? PARTS[w.player.part] : null;
-  if (part) for (const [k, key] of Object.entries(part.stats) as [StatKey, keyof typeof t][]) s[k] *= t[key];
+  const s: BodyStats = { topSpeed: t.topSpeed, turnLow: t.turnLow, turnHigh: t.turnHigh, scrubLat: t.scrubLat, accHigh: t.accHigh };
+  for (const part of activeParts(w)) for (const [k, key] of Object.entries(part.stats) as [StatKey, keyof typeof t][]) s[k] *= t[key];
   return s;
 }
 
-/** How the Rip button attacks right now: the part's mode, or the plain Rip (always in flat mode). */
+/** How holding Rip attacks right now: the Booster's Burn, or the plain Rip (always in flat mode). */
 export function attackMode(w: World): AttackMode {
-  if (w.flat || !w.player.part) return 'rip';
-  return PARTS[w.player.part].behavior.attack ?? 'rip';
+  return hasBehavior(w, 'attack', 'burn') ? 'burn' : 'rip';
 }
 
 /** Turn rate (rad/s) at a speed. */
@@ -64,11 +81,23 @@ export function steer(w: World, input: InputFrame) {
     const hyst = (t.brakeHystDeg * Math.PI) / 180;
     if (p.brake) {
       if (ad < brakeAt - hyst) p.brake = false;
-    } else if (ad > brakeAt && p.speed > t.pivotSpeed) {
-      p.brake = true;
-      w.events.push({ k: 'skid' });
+    } else if (!p.slide && ad > brakeAt && p.speed > t.pivotSpeed) {
+      if (hasBehavior(w, 'brake', 'slide')) {
+        // the Grip Treads: no brake, a power-slide round to the new direction (PLAN.md 8.4)
+        p.slide = true;
+        w.events.push({ k: 'slide' });
+      } else {
+        p.brake = true;
+        w.events.push({ k: 'skid' });
+      }
     }
-    if (p.brake) {
+    if (p.slide) {
+      // swing round toward the stick, keeping most of your speed; no thrust until you're round
+      const step = clamp(delta, -t.slideTurn * DT, t.slideTurn * DT);
+      p.heading = wrapAngle(p.heading + step);
+      p.speed *= Math.pow(t.slideKeep, Math.abs(step) / Math.PI);
+      if (Math.abs(wrapAngle(target - p.heading)) < 0.35 || p.speed < t.pivotSpeed) p.slide = false;
+    } else if (p.brake) {
       p.speed = Math.max(0, p.speed - t.brakeDecel * DT);
       if (p.speed <= t.pivotSpeed) {
         p.heading = target;
@@ -83,18 +112,19 @@ export function steer(w: World, input: InputFrame) {
         // turn scrub: a turn that pulls harder than scrubLat sideways (speed × turn rate) bleeds
         // speed, at every speed, so tight turns drop you out of Slipstream (DECISIONS #47)
         const lateral = p.speed * (Math.abs(turn) / DT);
-        if (lateral > t.scrubLat) p.speed = Math.max(0, p.speed - t.scrubK * (lateral - t.scrubLat) * DT);
+        if (lateral > st.scrubLat) p.speed = Math.max(0, p.speed - t.scrubK * (lateral - st.scrubLat) * DT);
       }
       const along = Math.max(0, Math.cos(wrapAngle(target - p.heading))) * m;
       const cap = st.topSpeed * m;
       if (p.speed < cap) {
-        const a = p.speed < t.accSplit ? t.accLow : t.accHigh;
+        const a = p.speed < t.accSplit ? t.accLow : st.accHigh;
         p.speed = Math.min(cap, p.speed + a * along * DT);
       } else if (p.speed > st.topSpeed) decayOverspeed(w, st);
       else if (p.speed > cap) p.speed = cap + halve(p.speed - cap, t.coastHalf);
     }
   } else {
     p.brake = false;
+    p.slide = false;
     p.speed = halve(p.speed, t.coastHalf);
     if (p.speed < 0.5) p.speed = 0;
   }
@@ -115,10 +145,16 @@ export function drift(w: World) {
 /** Move the player one tick and resolve wall and pillar contacts. */
 export function movePlayer(w: World) {
   const p = w.player, t = w.t;
+  if (p.latch) {
+    // the Jaws' swing sets your position (rip.ts updateLatch); only keep you out of the walls
+    Object.assign(p, pushOut(w.arena, p.x, p.y, t.playerRadius));
+    return;
+  }
   p.x += Math.cos(p.heading) * p.speed * DT;
   p.y += Math.sin(p.heading) * p.speed * DT;
   for (let pass = 0; pass < 2; pass++) {
-    for (const c of contacts(w.arena, p.x, p.y, t.playerRadius)) {
+    const open = w.exits.length ? w.arena.gates.filter((g) => w.exits.some((e) => e.gate === g.id)) : [];
+    for (const c of contacts(w.arena, p.x, p.y, t.playerRadius, open)) {
       p.x += c.nx * c.depth;
       p.y += c.ny * c.depth;
       let vx = Math.cos(p.heading) * p.speed, vy = Math.sin(p.heading) * p.speed;

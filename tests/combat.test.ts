@@ -73,12 +73,12 @@ describe('speed tiers', () => {
     const { w, r } = setup(230, 34, -Math.PI / 2, { booster: false });
     rip(w);
     for (let i = 0; i < 4; i++) tick(w, IN(1, 0));
-    expect(r.hp).toBe(2);
+    expect(r.hp).toBe(w.t.rammerHp - 2);
     Object.assign(w.player, { x: r.x - 34, y: r.y, heading: 0, speed: 230, ripCd: 0, prevRip: false, rip: null, pass: 0 });
     w.hitstop = 0;
     const ev = [...rip(w), ...tick(w, IN(1, 0)), ...tick(w, IN(1, 0))];
     expect(ev.some((e) => e.k === 'wreck')).toBe(true);
-    expect(w.rammers.length).toBe(0);
+    expect(w.enemies.length).toBe(0);
   });
 });
 
@@ -162,7 +162,7 @@ describe('the Rammer', () => {
     let max = 0;
     for (let i = 0; i < 120; i++) {
       tick(w, IDLE);
-      max = Math.max(max, w.rammers.filter((r) => r.state === 'windup').length);
+      max = Math.max(max, w.enemies.filter((r) => r.state === 'windup').length);
     }
     expect(max).toBeLessThanOrEqual(2);
   });

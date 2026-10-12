@@ -2,11 +2,13 @@
 // The camera is bolted to the chassis, so the mouse never turns the view: it sets a *steer demand*,
 // a heading the player wants, and the sim turns the body toward it at its own rate with its own
 // scrub. A/D (and the stick) ask for a gentle turn, then a hard one if held. W thrusts, S
-// brakes to a stop (without the 2D pivot). The output is the sim's ordinary stick vector:
+// brakes to a stop (without the 2D pivot); with the Grip Treads bolted on, a tap of S at speed is
+// the treads' power-slide, a U-turn that keeps your speed (DECISIONS #31). The output is the sim's
+// ordinary stick vector:
 // direction = the demanded heading, magnitude = thrust, so every movement rule applies untouched.
 // Pure: no DOM, testable against the sim.
 import { wrapAngle } from '../data/dirs';
-import { playerStats, turnRate } from '../sim/body';
+import { hasBehavior, playerStats, turnRate } from '../sim/body';
 import { revving } from '../sim/rip';
 import type { InputFrame, World } from '../sim/world';
 import { DT } from '../sim/world';
@@ -51,6 +53,9 @@ const COAST_STEER = 0.06;
 const BRAKE_MARGIN = 20;
 /** net speed loss (px/s²) a turn has to cost before it's shown and heard as scrub */
 const SCRUB_SHOWN = 30;
+/** the Grip Treads' slide is aimed this far short of a full reversal, so the sim swings it round
+ *  the side you chose (an exact reversal has no side); normal steering finishes the turn */
+const SLIDE_SHORT = 0.12;
 
 export class Steer {
   /** the demanded heading, absolute (rad, sim space) */
@@ -66,8 +71,13 @@ export class Steer {
   /** how long a turn key (or the stick) has been held one way (s) */
   private keyHeld = 0;
   private keyDir = 0;
+  /** the power-slide's fixed target while the sim slides (the Grip Treads) */
+  private slideTarget: number | null = null;
+  private brakeWas = false;
 
   reset(heading: number) {
+    this.slideTarget = null;
+    this.brakeWas = false;
     this.demand = heading;
     this.off = 0;
     this.scrub = false;
@@ -86,9 +96,34 @@ export class Steer {
     // with it, so the body never steers back into a wall it just glanced off
     this.demand += wrapAngle(wrapAngle(p.heading - this.lastHeading) - this.expected);
 
+    // the Grip Treads: no brake; a tap of S at speed power-slides you round (2D PLAN.md 8.4). The
+    // sim swings round toward the stick while it slides, so the target is held still until it's done
+    const treads = hasBehavior(w, 'brake', 'slide');
+    const brakeEdge = s.brake && !this.brakeWas;
+    this.brakeWas = s.brake;
+    if (!p.slide && this.slideTarget !== null && !brakeEdge) {
+      // the slide is over: steering finishes the turn to where it was aimed
+      this.demand = this.slideTarget;
+      this.slideTarget = null;
+    }
+    const kSide = (s.right ? 1 : 0) - (s.left ? 1 : 0) + s.padX;
+    if (treads && brakeEdge && !p.slide && p.speed > t.pivotSpeed + 5 && !p.rip && !revving(w) && p.knock <= 0 && p.stun <= 0) {
+      // round the side you're steering (keys, stick, else the mouse's demand), else to the right
+      const side = Math.abs(kSide) > 0.2 ? Math.sign(kSide) : Math.abs(this.off) > 0.05 ? Math.sign(this.off) : 1;
+      this.slideTarget = p.heading + side * (Math.PI - SLIDE_SHORT);
+    }
+    if (this.slideTarget !== null) {
+      this.demand = this.slideTarget;
+      this.off = wrapAngle(this.slideTarget - p.heading);
+      this.expected = 0;
+      this.scrub = false;
+      this.lastHeading = p.heading;
+      return { x: Math.cos(this.slideTarget), y: Math.sin(this.slideTarget) };
+    }
+
     // S brakes only while it can't become the 2D pivot; below that it is just "no thrust", and the
-    // controls still steer (you brake, then turn to face the Rammer)
-    const braking = s.brake && p.speed > t.pivotSpeed + BRAKE_MARGIN;
+    // controls still steer (you brake, then turn to face the Rammer). With the treads it never brakes.
+    const braking = s.brake && !treads && p.speed > t.pivotSpeed + BRAKE_MARGIN;
     // the body can't follow a demand while a lunge, a Burn rev, a throw, a stun or a brake has it
     const locked = !!p.rip || revving(w) || p.knock > 0 || p.stun > 0 || braking;
     // the whole mouse turn is kept (up to MAX_PEND), so the same flick turns you the same amount at

@@ -56,7 +56,7 @@ assert len(PAL) == 64
 # Colour language (hard rules). Teal is never painted into any texture.
 TEAL = {39, 40, 41, 42, 43, 48}
 DANGER = {10, 11, 12, 14, 15, 59, 60}   # Rammer eyes + Rammer front hazard stripes only
-SALVAGE = {17, 18, 23, 28}              # booster only
+SALVAGE = {17, 18, 23, 28}              # the parts only: booster, treads, plow, jaws
 
 
 def srgb_to_linear(c):

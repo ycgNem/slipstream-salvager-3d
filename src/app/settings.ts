@@ -23,6 +23,11 @@ export interface Best {
   clears: number;
   bestTicks: number;
   bestHull: number;
+  /** runs (M3): started, won, the most yards cleared, the fastest win */
+  runs: number;
+  wins: number;
+  bestYards: number;
+  bestWinTicks: number;
 }
 
 export const PREFIX = 'ss3d:';
@@ -55,5 +60,5 @@ export const saveSettings = (s: Settings) => write(KEY, s);
 export const loadSeenHints = () => read<Record<string, boolean>>(SEEN, {});
 export const saveSeenHints = (h: Record<string, boolean>) => write(SEEN, h);
 
-export const loadBest = () => read<Best>(BEST, { clears: 0, bestTicks: 0, bestHull: 0 });
+export const loadBest = () => read<Best>(BEST, { clears: 0, bestTicks: 0, bestHull: 0, runs: 0, wins: 0, bestYards: 0, bestWinTicks: 0 });
 export const saveBest = (b: Best) => write(BEST, b);

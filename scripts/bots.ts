@@ -1,6 +1,6 @@
 // Runs the strategy bots on several seeds and prints what they achieved, to tune the slice and
 // set the thresholds in tests/guards.test.ts. Usage: npx vite-node scripts/bots.ts
-import { createWorld, type World } from '../src/sim/world';
+import { createWorld, giveBolted, type World } from '../src/sim/world';
 import { step } from '../src/sim/tick';
 import { brawlerBot, hitAndRunBot, lanerBot, looperBot, matadorBot, turretBot, type Bot } from '../src/sim/bots';
 
@@ -32,13 +32,13 @@ for (const [name, mk] of [['turret', turretBot], ['brawler', brawlerBot], ['mata
 // whole slice for hit-and-run
 {
   const ws = seeds.map((s) => play(hitAndRunBot(), s, 300, 99));
-  console.log('hit-and-run full slice:', ws.map((w) => `${w.result ?? 'w' + (w.wave.index + 1)}:${(w.stats.ticks / 60).toFixed(0)}s hull${w.player.hull} part:${w.player.part ?? '-'}`).join('  '));
+  console.log('hit-and-run full slice:', ws.map((w) => `${w.result ?? 'w' + (w.wave.index + 1)}:${(w.stats.ticks / 60).toFixed(0)}s hull${w.player.hull} parts:${Object.values(w.player.parts).map((b) => b!.id).join('+') || '-'}`).join('  '));
 }
 
 // route flip: share of time at Slipstream over 40 s
 function route(bot: Bot, booster: boolean) {
   const w = createWorld({ seed: 1, sandbox: true });
-  if (booster) w.player.part = 'booster';
+  if (booster) giveBolted(w, 'booster');
   for (let i = 0; i < 2400; i++) {
     step(w, bot(w));
     w.events.length = 0;
