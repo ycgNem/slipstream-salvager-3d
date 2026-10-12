@@ -6,12 +6,13 @@ what's built, `HANDOFF.md` where the last session stopped. The game's rules are 
 (`C:\Users\jacks\Documents\slipstream-salvager`, read-only from here), vendored in `src/sim` and
 `src/data`.
 
-**Status (2026-10-12):** M0 and M1 are built, and an M2 pass of fixes from the critic's review is
-in. **Stopped for the owner's playtest.**
+**Status (2026-10-12):** M0 and M1 are built, and an M2 pass of fixes from the critic's and the
+visual QA's review is in. Published at https://ycgnem.github.io/slipstream-salvager-3d/. **Stopped for the owner's playtest.**
 
 **How every session runs:** start with *"Read ROADMAP.md and HANDOFF.md"*. Build the phase,
 deciding small things alone and logging them in `DECISIONS.md`. Run the phase's checks. Commit on
-`works`. **Push only when the owner says so** (no GitHub repo yet; DECISIONS #0a).
+`works`. **Push and publish only when the owner says so** (pushing `main` deploys to Pages;
+DECISIONS #26).
 
 ---
 

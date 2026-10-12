@@ -237,3 +237,15 @@ input; the sim is untouched (the drift test holds).
   - Left as they are: S with a turn creeps at 14 px/s (the sim's minimum stick); a flick made during
     the 0.18 s brake from top speed mostly fades (the body can't turn while braking); 3 draw calls of
     headroom.
+
+## Publishing (2026-10-12)
+
+- #26: **Published at the owner's word ("commit and push live").** Created the repo
+  `ycgNem/slipstream-salvager-3d` with `gh`, public like the 2D game's (GitHub Pages on this account
+  needs a public repo), named as PLAN.md "Identity" and START-HERE step 3 say. Pages builds from
+  GitHub Actions (`deploy.yml`: `npm ci`, `npm test`, `npm run build`, deploy `dist/`) on every push
+  to `main`: https://ycgnem.github.io/slipstream-salvager-3d/. `works` stays the working branch; `main` is fast-forwarded to it to publish. CI
+  runs the vendored suite and the steer tests; the drift test's second check only runs where the 2D
+  project is on disk, so it never fails in CI. The build uses relative paths (`base: './'`), so it
+  works under the Pages subpath. The Windows installer is not published anywhere (it's built
+  locally into `release/`, which git ignores).

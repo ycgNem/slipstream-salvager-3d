@@ -5,16 +5,31 @@ Read this first, every session.
 ## Where things stand (2026-10-12)
 
 - **Milestone 0 and Milestone 1 are built, plus a first M2 pass of fixes from an internal critic
-  and visual QA review. Stopped for the owner's playtest.** Built overnight in one autonomous
-  session at the owner's request ("complete a lot of milestones and come back with a playable
-  version").
+  and visual QA review (and the critic's re-check). Published. Stopped for the owner's playtest.**
+  Built overnight in one autonomous session at the owner's request ("complete a lot of milestones
+  and come back with a playable version").
 - This is a SEPARATE game from the 2D Slipstream Salvager at `C:\Users\jacks\Documents\slipstream-salvager`.
   That folder is read-only for this project: never write, commit or run npm there.
 - **The rules are the 2D game's M2 slice** (vendored from 2D `e0504af`). The 2D project moved on to
   its M3 (a run, more enemies) and M4 (art, 0.2.0) during the night; this game deliberately stays on
   the slice until the owner decides (DECISIONS #21, accepted again at 2D `45dc78f`). Re-vendoring is
   the natural start of a 3D M3.
-- No GitHub repo yet; the Pages workflow is inert. Branch `works`. Nothing pushed.
+- **Published** (DECISIONS #26): the repo is https://github.com/ycgNem/slipstream-salvager-3d (public, like the 2D game's), and it's live at
+  **https://ycgnem.github.io/slipstream-salvager-3d/**. Every push to `main` runs the tests, builds and deploys
+  (`.github/workflows/deploy.yml`). Day-to-day work is committed on `works`; publishing is
+  fast-forwarding `main` to `works` and pushing both (commands below).
+
+## Next session: start here
+
+1. Read this file, then `ROADMAP.md` (the playtest questions are under Milestone 2).
+2. If the owner has playtest notes, each note becomes one change on `works` ending "DECISIONS #N"
+   (the next number is in `DECISIONS.md`). Run the checks (below), commit, and publish only when the
+   owner says so.
+3. Open calls only the owner can make are under "Open points" below: the rule proposals and whether
+   to re-vendor the 2D game's newer rules (that would be the start of a 3D Milestone 3).
+4. `npm test` will fail on the drift check if the 2D project commits rule changes again. That is
+   the design: either re-vendor (`npm run vendor`) or keep ours with
+   `node scripts/vendor.mjs --accept '#21'` and note it in DECISIONS #21.
 
 ## How to playtest (for the owner)
 
@@ -86,6 +101,7 @@ Put the portable Node first in every shell:
 | Web build | `npm run build` / `Package for web.bat` | `dist/`, about 215 KB gzipped + 100 KB of models |
 | Windows app | `npm run dist:win` / `Build desktop app.bat` | `release/` |
 | App icons | `npm run icons` | |
+| Publish | `git push origin works`, then `git push origin works:main` | `main` deploys to Pages (Actions tab shows the run); only when the owner says so |
 
 All e2e scripts start their own Vite server and headless Chrome with WebGL on SwiftShader
 (`e2e/launch.mjs`). The built-in browser pane throttles when hidden; use the e2e scripts for timing.

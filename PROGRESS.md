@@ -2,6 +2,11 @@
 
 What is built. Newest first.
 
+## 2026-10-12 — Published
+
+- The GitHub repo https://github.com/ycgNem/slipstream-salvager-3d (public, like the 2D game's) with `main` and `works`; GitHub Pages builds,
+  tests and deploys every push to `main`: https://ycgnem.github.io/slipstream-salvager-3d/ (DECISIONS #26).
+
 ## 2026-10-12 — Milestone 2, first pass: the critic's and the visual QA's review
 
 - Two review agents (design critic, visual QA) went over the M1 build; every finding that wasn't a
@@ -70,4 +75,4 @@ What is built. Newest first.
 |---|---|
 | M0 — Vendor, scaffold, 3D pipeline | done |
 | M1 — First-person parity with the 2D slice | done |
-| M2 — Playtest fixes | first pass from the critic and QA review; waiting for the owner's playtest |
+| M2 — Playtest fixes | first pass from the critic and QA review; published; waiting for the owner's playtest |

@@ -9,7 +9,9 @@ You drive a small, fast scrap robot. Only a hit at full speed (the claw glows te
 a Rammer's back at speed to tear its booster off, tow it behind you, bolt it on, and your attack
 becomes the Rammer's own charge: hold to rev in a locked straight line, let go to burn through.
 
+- **Play in the browser:** https://ycgnem.github.io/slipstream-salvager-3d/ (click the view once a run starts so the mouse can steer).
 - **Play locally:** double-click `Play.bat` (or `npm run dev`), then open http://localhost:5183.
+  A Windows installer and portable exe: `Build desktop app.bat` (or `npm run dist:win`), in `release/`.
 - **Controls:** mouse or A/D steer (click the view to let the mouse steer), W thrust, S brake, click
   or Space rip (hold with a booster to rev a Burn), E bolt on, Q look back, H hide the HUD, Esc pause.
   Gamepad: stick steers, RT thrust, LT brake, A rip, Y bolt, LB look back.

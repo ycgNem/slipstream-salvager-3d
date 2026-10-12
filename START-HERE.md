@@ -1,5 +1,9 @@
 # Start here — Slipstream Salvager 3D
 
+> **Status (2026-10-12):** the prompts below are how this project was planned. Milestones 0 and 1
+> are done, an M2 review pass is in, and the game is published at https://ycgnem.github.io/slipstream-salvager-3d/.
+> **For a new session, read `HANDOFF.md` first**, not the prompts below.
+
 A separate game in a separate folder and repo. **The 2D project at
 `C:\Users\jacks\Documents\slipstream-salvager` is read from and never written to.** If a
 prompt below would ever change a file there, that is a bug in the prompt; stop it.
