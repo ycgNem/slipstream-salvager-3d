@@ -2,8 +2,9 @@
 // separate meshes a Rammer cost five draw calls a pass (body, eyes, booster shell, nozzle, shadow),
 // and The Heap's last wave sends six enemies; here each model piece is one InstancedMesh for every
 // body that wears it, filled from the sim each frame. Per-instance color carries what used to be
-// per material: the glows (eyes, nozzles: exact palette colors, unlit), the hit flash, the gold
-// glint of an open back, a cracked part's grey.
+// per material: the glows (eyes, nozzles: exact palette colors, unlit) and the gold glint of a part
+// open to a tear; a per-instance `whiten` carries the hit flash and a cracked part's flicker
+// (shading.ts). The telegraph lanes are one instanced mesh too.
 //
 // Every state the 2D sprites had: a Rammer stalks, crouches in its windup, leans into its charge,
 // skids, wobbles stunned, limps stripped; a Snapper rumbles round you, plants and crouches for its
@@ -15,7 +16,8 @@ import type { PartId } from '../data/parts';
 import type { Enemy, World } from '../sim/world';
 import { laneOf } from '../sim/enemies';
 import { type ModelSet, meshesOf } from './models';
-import { Lane } from './decals';
+import { Lanes } from './decals';
+import { shade, crackFlicker } from './shading';
 import { shadowTexture } from './textures';
 import { clamp01, pal, wx, wz, modelYaw } from './units';
 
@@ -34,7 +36,7 @@ const WHITE = new THREE.Color(1, 1, 1);
 
 /** A model node's meshes as instanced meshes, one per material, posed per instance. */
 class Piece {
-  private parts: { mesh: THREE.InstancedMesh; node: THREE.Matrix4; inner: THREE.Matrix4 }[] = [];
+  private parts: { mesh: THREE.InstancedMesh; node: THREE.Matrix4; inner: THREE.Matrix4; whiten: THREE.InstancedBufferAttribute }[] = [];
   n = 0;
 
   /** `node`: the rigid piece (its pivot is where `local` turns it); null: the whole model */
@@ -47,7 +49,12 @@ class Piece {
     const invNode = new THREE.Matrix4().copy(src.matrixWorld).invert();
     for (const m of meshesOf(src)) {
       const material = mat ?? (glow ? new THREE.MeshBasicMaterial({ color: 0xffffff }) : (m.material as THREE.Material).clone());
-      const im = new THREE.InstancedMesh(m.geometry, material, MAX);
+      // its own geometry, so the per-instance whiten (shading.ts) is its own
+      const geo = m.geometry.clone();
+      const whiten = new THREE.InstancedBufferAttribute(new Float32Array(MAX), 1);
+      whiten.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute('whiten', whiten);
+      const im = new THREE.InstancedMesh(geo, material, MAX);
       im.name = `batch:${name}:${m.name}`;
       im.count = 0;
       im.visible = false;
@@ -55,7 +62,7 @@ class Piece {
       // allocate the color buffer now, so the program is compiled with instance colors from the start
       for (let i = 0; i < MAX; i++) im.setColorAt(i, WHITE);
       parent.add(im);
-      this.parts.push({ mesh: im, node: nodeRel, inner: new THREE.Matrix4().multiplyMatrices(invNode, m.matrixWorld) });
+      this.parts.push({ mesh: im, node: nodeRel, inner: new THREE.Matrix4().multiplyMatrices(invNode, m.matrixWorld), whiten });
     }
   }
 
@@ -68,7 +75,7 @@ class Piece {
   }
 
   /** One instance: the body's matrix, then (optionally) a turn about the piece's own pivot. */
-  add(body: THREE.Matrix4, color: THREE.Color = WHITE, local?: THREE.Matrix4) {
+  add(body: THREE.Matrix4, color: THREE.Color = WHITE, local?: THREE.Matrix4, whiten = 0) {
     if (this.n >= MAX) return;
     for (const p of this.parts) {
       _pm.multiplyMatrices(body, p.node);
@@ -76,6 +83,7 @@ class Piece {
       _pm.multiply(p.inner);
       p.mesh.setMatrixAt(this.n, _pm);
       p.mesh.setColorAt(this.n, color);
+      p.whiten.setX(this.n, whiten);
     }
     this.n++;
   }
@@ -86,6 +94,7 @@ class Piece {
       p.mesh.visible = this.n > 0;
       p.mesh.instanceMatrix.needsUpdate = true;
       if (p.mesh.instanceColor) p.mesh.instanceColor.needsUpdate = true;
+      p.whiten.needsUpdate = true;
     }
   }
 
@@ -142,13 +151,26 @@ interface Look {
   lastFace: number | null;
   /** smoothed turn rate (rad/s) for the lean */
   omega: number;
-  lane: Lane | null;
 }
 
 const tint = (r: number, g: number, b: number) => new THREE.Color(r, g, b);
-const FLASH = tint(3, 3, 3);
-const CRACKED = tint(0.62, 0.66, 0.72);
 const GLINT = tint(1.7, 1.4, 0.75);
+/** the hit flash's whiten */
+const FLASH = 0.8;
+
+/**
+ * Is this part of this enemy open to a tear right now? Then it glints gold (2D DECISIONS #60): a
+ * Rammer's booster when its back is open, the plow while it charges (joust it), a Snapper's treads
+ * while it slides broadside or reels, its jaws while it winds up or reels.
+ */
+export function tearable(e: Enemy, part: PartId): boolean {
+  switch (part) {
+    case 'booster': return e.state === 'skid' || e.state === 'charge' || (e.state === 'windup' && e.locked);
+    case 'plow': return e.state === 'charge';
+    case 'treads': return e.state === 'slide' || e.state === 'stunned';
+    case 'jaws': return e.state === 'windup' || e.state === 'stunned';
+  }
+}
 
 export class EnemyBatch {
   group = new THREE.Group();
@@ -163,6 +185,9 @@ export class EnemyBatch {
   /** every glow: eyes and nozzles, as boxes */
   private glow: Piece;
   private shadow: Piece;
+  /** every telegraph lane (one per enemy winding up) */
+  private lanes = new Lanes('enemy', 12);
+  private time = 0;
   private rEyes: THREE.Matrix4[];
   private sEyes: THREE.Matrix4[];
   private nozzle: THREE.Matrix4[];
@@ -182,6 +207,11 @@ export class EnemyBatch {
     this.plow = new Piece(models.get('plow'), null, false, g, 'plow');
     this.jaw = new Piece(jaws, 'jaw_l', false, g, 'jaw');
     for (const m of this.jaw.meshes) (m.material as THREE.Material).side = THREE.DoubleSide;
+    // salvage stays gold in shade: a part lights a little of its own texture, or the palette snap
+    // turns a shaded gold face olive at any distance (DECISIONS #35)
+    for (const piece of [this.bShell, this.treads, this.plow, this.jaw]) for (const m of piece.meshes) shade(m.material as THREE.MeshLambertMaterial, true);
+    for (const piece of [this.rBody, this.sBody]) for (const m of piece.meshes) shade(m.material as THREE.MeshLambertMaterial, false);
+    scene.add(this.lanes.mesh);
     const unit = new THREE.Group();
     const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
     cube.name = 'glow';
@@ -212,32 +242,30 @@ export class EnemyBatch {
   }
 
   clear() {
-    for (const l of this.looks.values()) l.lane?.dispose();
     this.looks.clear();
-    for (const p of this.all) {
-      p.begin();
-      p.end();
-    }
+    this.begin(this.time);
+    this.end();
   }
 
-  begin() {
+  begin(time: number) {
+    this.time = time;
     for (const p of this.all) p.begin();
+    this.lanes.begin();
   }
 
   end() {
     for (const p of this.all) p.end();
+    this.lanes.end(this.time);
   }
 
   /** Drop the looks of enemies that are gone. */
   prune(live: Set<number>) {
     for (const [id, l] of this.looks)
-      if (!live.has(id)) {
-        l.lane?.dispose();
-        this.looks.delete(id);
-      }
+      if (!live.has(id)) this.looks.delete(id);
   }
 
-  private shadowAt(x: number, z: number, d: number) {
+  /** A blob shadow on the floor (yours too: one draw call for all of them). */
+  shadowAt(x: number, z: number, d: number) {
     _m.compose(_p.set(x, 0.006, z), _q.identity(), _s.set(d, 1, d));
     this.shadow.add(_m);
   }
@@ -246,7 +274,7 @@ export class EnemyBatch {
   enemy(w: World, e: Enemy, x: number, y: number, face: number, time: number, dt: number) {
     let l = this.looks.get(e.id);
     if (!l) {
-      l = { flash: 0, pos: new THREE.Vector3(), face, lastFace: null, omega: 0, lane: null };
+      l = { flash: 0, pos: new THREE.Vector3(), face, lastFace: null, omega: 0 };
       this.looks.set(e.id, l);
     }
     l.flash = Math.max(0, l.flash - dt);
@@ -262,7 +290,7 @@ export class EnemyBatch {
 
     // the tilt: the state's pose of the whole body
     let tx = 0, ty = 0, tz = 0, rx = 0, rz = 0, sy = 1, sx = 1;
-    let eye: number = C.danger3, nozzle: number = C.rust1, glint = false, jawOpen = 0.12;
+    let eye: number = C.danger3, nozzle: number = C.rust1, jawOpen = 0.12;
     const id = e.id;
     if (e.kind === 'rammer') {
       const stripped = e.parts.rear !== 'booster';
@@ -285,7 +313,6 @@ export class EnemyBatch {
           tz = Math.sin(time * 53 + id * 3) * 0.5 * j;
           eye = e.locked && Math.floor(time * 12) % 2 ? C.dangerPink : C.danger3;
           nozzle = e.locked ? C.rust3 : k > 0.5 ? C.orange : C.rust2;
-          glint = e.locked;
           break;
         }
         case 'charge':
@@ -293,7 +320,6 @@ export class EnemyBatch {
           ty = 0.01;
           eye = C.dangerPink;
           nozzle = e.shove ? C.orange : C.rust3;
-          glint = true;
           break;
         case 'skid': {
           const k = 1 - clamp01(e.t / e.skidFor);
@@ -303,7 +329,6 @@ export class EnemyBatch {
             rx = Math.sin(time * 14) * 0.08 * (0.4 + k);
             eye = Math.floor(time * 10) % 3 === 0 ? C.danger0 : C.danger1;
           } else eye = C.danger1;
-          glint = true;
           break;
         }
       }
@@ -357,41 +382,39 @@ export class EnemyBatch {
     _m.compose(_p.set(wxp, 0, wzp), _q.setFromAxisAngle(_s.set(0, 1, 0), modelYaw(face)), _s.set(1, 1, 1));
     _n.compose(_p.set(tx, ty, tz), _q.setFromEuler(_e.set(rx, 0, rz, 'XYZ')), _s.set(sx, sy, 1));
     const body = new THREE.Matrix4().multiplyMatrices(_m, _n);
-    const flash = l.flash > 0 ? FLASH : WHITE;
+    const flash = l.flash > 0 ? FLASH : 0;
+    // a part open to a tear blinks gold at 10 Hz, as in 2D
+    const blink = Math.floor(time * 10) % 2 === 0;
+    const open = (part: PartId) => (blink && tearable(e, part) ? GLINT : WHITE);
     const eyeColor = pal(eye);
     if (e.kind === 'rammer') {
-      this.rBody.add(body, flash);
+      this.rBody.add(body, WHITE, undefined, flash);
       for (const b of this.rEyes) this.glow.add(new THREE.Matrix4().multiplyMatrices(body, b), eyeColor);
       this.shadowAt(wxp, wzp, 1.5);
     } else {
-      this.sBody.add(body, flash);
+      this.sBody.add(body, WHITE, undefined, flash);
       for (const b of this.sEyes) this.glow.add(new THREE.Matrix4().multiplyMatrices(body, b), eyeColor);
       this.shadowAt(wxp, wzp, 1.0);
     }
     // the parts it wears, on the same mounts as yours
     if (e.parts.rear === 'booster') {
       const at = new THREE.Matrix4().multiplyMatrices(body, _m.makeTranslation(this.rammerRear.x, this.rammerRear.y, this.rammerRear.z));
-      // it glints gold while the back is open (2D DECISIONS #60)
-      this.bShell.add(at, glint && Math.floor(time * 10) % 2 ? GLINT : WHITE);
+      this.bShell.add(at, open('booster'), undefined, flash);
       for (const b of this.nozzle) this.glow.add(new THREE.Matrix4().multiplyMatrices(at, b), pal(nozzle));
     }
-    if (e.parts.sides === 'treads') this.treads.add(body, flash);
+    if (e.parts.sides === 'treads') this.treads.add(body, open('treads'), undefined, flash);
     const front = e.kind === 'rammer' ? this.rammerFront : this.snapFront;
-    if (e.parts.front === 'plow') this.plow.add(new THREE.Matrix4().multiplyMatrices(body, _m.makeTranslation(front.x, front.y, front.z)), flash);
+    if (e.parts.front === 'plow') this.plow.add(new THREE.Matrix4().multiplyMatrices(body, _m.makeTranslation(front.x, front.y, front.z)), open('plow'), undefined, flash);
     if (e.parts.front === 'jaws') {
       const at = new THREE.Matrix4().multiplyMatrices(body, _m.makeTranslation(front.x, front.y, front.z));
-      this.jaws(at, flash, jawOpen * 0.8);
+      this.jaws(at, open('jaws'), jawOpen * 0.8, flash);
     }
 
     // the telegraph lane on the floor
     if (e.state === 'windup') {
-      if (!l.lane) {
-        l.lane = new Lane('enemy');
-        this.scene.add(l.lane.mesh);
-      }
       const info = laneOf(w, e);
-      l.lane.set(x, y, info.angle, info.len, info.width, e.locked, time);
-    } else l.lane?.hide();
+      this.lanes.add(x, y, info.angle, info.len, info.width, e.locked);
+    }
   }
 
   /**
@@ -399,25 +422,27 @@ export class EnemyBatch {
    * (swinging on the cable). Every part is centred over (x, y).
    */
   part(id: PartId, x: number, y: number, yaw: number, lift: number, cracked: boolean, glint: boolean, shadow = true) {
-    const c = cracked ? CRACKED : glint ? GLINT : WHITE;
+    const c = glint ? GLINT : WHITE;
+    // a cracked part flickers white (the 2D game's white crack): it shatters on the next hit
+    const wh = cracked ? crackFlicker(this.time, x * 0.01) : 0;
     _m.compose(_p.set(wx(x), 0, wz(y)), _q.setFromAxisAngle(_s.set(0, 1, 0), yaw), _s.set(1, 1, 1));
     const at = (dx: number) => new THREE.Matrix4().multiplyMatrices(_m, new THREE.Matrix4().makeTranslation(dx, lift, 0));
     switch (id) {
       case 'booster': {
         // its origin is the mount flange; the thruster reaches back 0.5 m
         const m = at(0.25);
-        this.bShell.add(m, c);
+        this.bShell.add(m, c, undefined, wh);
         for (const b of this.nozzle) this.glow.add(new THREE.Matrix4().multiplyMatrices(m, b), pal(C.rust0));
         break;
       }
       case 'treads':
-        this.treads.add(at(0), c);
+        this.treads.add(at(0), c, undefined, wh);
         break;
       case 'plow':
-        this.plow.add(at(-0.08), c);
+        this.plow.add(at(-0.08), c, undefined, wh);
         break;
       case 'jaws': {
-        this.jaws(at(-0.17), c, 0.3);
+        this.jaws(at(-0.17), c, 0.3, wh);
         break;
       }
     }
@@ -425,10 +450,10 @@ export class EnemyBatch {
   }
 
   /** A pair of jaws at a mount, opened by `open` (rad). */
-  private jaws(at: THREE.Matrix4, c: THREE.Color, open: number) {
+  private jaws(at: THREE.Matrix4, c: THREE.Color, open: number, whiten = 0) {
     const turn = new THREE.Matrix4().makeRotationY(open);
-    this.jaw.add(at, c, turn);
-    this.jaw.add(new THREE.Matrix4().multiplyMatrices(at, MIRROR), c, turn);
+    this.jaw.add(at, c, turn, whiten);
+    this.jaw.add(new THREE.Matrix4().multiplyMatrices(at, MIRROR), c, turn, whiten);
   }
 
   /** Every instanced mesh (perf and coverage inspection). */

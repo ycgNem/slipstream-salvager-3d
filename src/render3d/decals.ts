@@ -7,24 +7,26 @@
 import * as THREE from 'three';
 import { C } from '../data/palette';
 import { pal, wx, wz, modelYaw } from './units';
-import { shadowTexture } from './textures';
 
+// every lane of a kind is one instance of one mesh (one draw call a pass, DECISIONS #35): its
+// length, width and lock ride in a per-instance attribute
 const LANE_VS = /* glsl */ `
+attribute vec3 aLane;
 varying vec2 vUv;
-void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+varying vec3 vLane;
+void main() { vUv = uv; vLane = aLane; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0); }`;
 
 const LANE_FS = /* glsl */ `
 precision highp float;
-uniform float uLen;     // metres along the lane
-uniform float uWidth;   // metres across
-uniform float uMode;    // 0 enemy lane, 1 burn lane, 2 gate warning
-uniform float uLocked;
+uniform float uMode;    // 0 enemy lane, 1 burn lane, 2 gate warning or exit
 uniform float uTime;
 uniform vec3 uEdge;
 uniform vec3 uFill;
 uniform vec3 uHot;
 varying vec2 vUv;
+varying vec3 vLane;     // metres along the lane, metres across, locked
 void main() {
+  float uLen = vLane.x, uWidth = vLane.y, uLocked = vLane.z;
   float px = 0.05;
   vec2 p = vec2(vUv.x * uLen, (vUv.y - 0.5) * uWidth);
   vec2 t = floor(p / px);
@@ -74,21 +76,22 @@ void main() {
 
 export type LaneMode = 'enemy' | 'burn' | 'gate' | 'exit';
 
-/** A lane on the floor from (x, y) along `angle`, in sim pixels. */
-export class Lane {
-  mesh: THREE.Mesh;
+/** Lanes of one kind on the floor, each from (x, y) along `angle` in sim pixels, all in one draw
+ *  call: fill them each frame between begin() and end(). */
+export class Lanes {
+  mesh: THREE.InstancedMesh;
   private mat: THREE.ShaderMaterial;
+  private data: THREE.InstancedBufferAttribute;
+  private n = 0;
+  private readonly dummy = new THREE.Object3D();
 
-  constructor(mode: LaneMode) {
+  constructor(mode: LaneMode, private max = 8) {
     const colors = mode === 'burn' ? [C.speed3, C.speed1, C.speed4] : mode === 'exit' ? [C.gold, C.gold0, C.gold3] : [C.danger3, C.danger1, C.dangerPink];
     this.mat = new THREE.ShaderMaterial({
       vertexShader: LANE_VS,
       fragmentShader: LANE_FS,
       uniforms: {
-        uLen: { value: 1 },
-        uWidth: { value: 1 },
         uMode: { value: mode === 'enemy' ? 0 : mode === 'burn' ? 1 : 2 },
-        uLocked: { value: 0 },
         uTime: { value: 0 },
         uEdge: { value: pal(colors[0]) },
         uFill: { value: pal(colors[1]) },
@@ -101,51 +104,53 @@ export class Lane {
     });
     // a unit quad on the floor: x 0..1 along the lane, z -0.5..0.5 across
     const g = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0.5, 0, 0);
-    this.mesh = new THREE.Mesh(g, this.mat);
+    this.data = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3);
+    this.data.setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute('aLane', this.data);
+    this.mesh = new THREE.InstancedMesh(g, this.mat, max);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.count = 0;
     this.mesh.renderOrder = 2;
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
-    this.mesh.name = `lane:${mode}`;
+    this.mesh.name = `lanes:${mode}`;
   }
 
-  set(x: number, y: number, angle: number, lenPx: number, widthPx: number, locked: boolean, time: number) {
+  begin() {
+    this.n = 0;
+  }
+
+  add(x: number, y: number, angle: number, lenPx: number, widthPx: number, locked: boolean) {
+    if (this.n >= this.max || lenPx <= 1) return;
     const len = Math.max(0.05, wx(lenPx)), w = wx(widthPx);
-    this.mesh.visible = lenPx > 1;
-    this.mesh.position.set(wx(x), 0.012, wz(y));
-    this.mesh.rotation.set(0, modelYaw(angle), 0);
-    this.mesh.scale.set(len, 1, w);
-    const u = this.mat.uniforms;
-    u.uLen.value = len;
-    u.uWidth.value = w;
-    u.uLocked.value = locked ? 1 : 0;
-    u.uTime.value = time;
+    const d = this.dummy;
+    d.position.set(wx(x), 0.012, wz(y));
+    d.rotation.set(0, modelYaw(angle), 0);
+    d.scale.set(len, 1, w);
+    d.updateMatrix();
+    this.mesh.setMatrixAt(this.n, d.matrix);
+    this.data.setXYZ(this.n, len, w, locked ? 1 : 0);
+    this.n++;
+  }
+
+  end(time: number) {
+    this.mesh.count = this.n;
+    this.mesh.visible = this.n > 0;
+    this.mesh.instanceMatrix.needsUpdate = true;
+    this.data.needsUpdate = true;
+    this.mat.uniforms.uTime.value = time;
+  }
+
+  /** One lane, or none (the Burn lane). */
+  set(x: number, y: number, angle: number, lenPx: number, widthPx: number, locked: boolean, time: number) {
+    this.begin();
+    this.add(x, y, angle, lenPx, widthPx, locked);
+    this.end(time);
   }
 
   hide() {
-    this.mesh.visible = false;
-  }
-
-  dispose() {
-    this.mesh.geometry.dispose();
-    this.mat.dispose();
-    this.mesh.removeFromParent();
-  }
-}
-
-/** Blob shadows: one shared texture and quad geometry. */
-export class Shadows {
-  private geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-  private mat: THREE.MeshBasicMaterial;
-  constructor() {
-    this.mat = new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, alphaTest: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, opacity: 1 });
-  }
-  make(diameter: number): THREE.Mesh {
-    const m = new THREE.Mesh(this.geo, this.mat);
-    m.scale.set(diameter, 1, diameter);
-    m.position.y = 0.006;
-    m.renderOrder = 1;
-    m.name = 'shadow';
-    return m;
+    this.begin();
+    this.end(0);
   }
 }
 

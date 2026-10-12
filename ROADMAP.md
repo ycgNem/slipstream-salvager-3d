@@ -82,7 +82,7 @@ From the 2D game's M1 list, in first person:
 The new one (PLAN.md): **10. Play once with the HUD hidden (H). Could you tell your speed with the
 HUD hidden?**
 
-## Milestone 3 — The run in first person (built; the owner's playtest next)
+## Milestone 3 — The run in first person (built and reviewed; the owner's playtest next)
 
 The 2D game's M3 (its PLAN.md section 8) re-vendored and presented from the seat. Rules: none of
 ours (DECISIONS #28).
@@ -98,15 +98,20 @@ ours (DECISIONS #28).
 4. **Your mounts:** the Grip Treads' power-slide as a tap of S (a first-person U-turn), view models
    for the treads, plow and jaws, the Jaws' whip camera, three HUD slots, the M3 hints placed in the
    world, the pause card's part lines.
-5. **Checks:** typecheck; `npm test` (105); `npm run e2e`; `npm run shots` (58 scenes, 0 overlaps);
+5. **Checks:** typecheck; `npm test` (102); `npm run e2e`; `npm run shots` (58 scenes, 0 overlaps);
    `npm run perf` (The Heap's last wave within budget); `npm run coverage` (16 models, no
    placeholders); `node e2e/run.mjs 5 8` (whole runs end to end); then the `indie-critic` and
    `qa-screens` agents and their fixes.
+6. **The review** (DECISIONS #35): salvage stays gold, flashes go white, every part shows its tear
+   window, the pack you can't see is heard and pipped, the treads' slide is aimed, the Jaws' camera
+   eases, the claw ducks for a close threat, smaller view models, exit signs below the banner and a
+   U-turn arrow, a full build within the draw-call budget. Checks after it: 105 tests, 61 scenes.
 
 ### Playtest questions for M3 (for the owner)
 
 1. Could you read a Snapper pack from the seat: where they were, which one was about to snap?
-2. The Grip Treads: did a tap of S to slide round feel like the hairpin (strike, slide, strike again)?
+2. The Grip Treads: did a tap of S to slide round feel like the hairpin (strike, slide, strike
+   again)? Did you aim the slide's exit with the mouse?
 3. The Plow and the Jaws from the seat: did ramming and the bite-and-sling feel decisive, or
    disorienting?
 4. Did you find the exits and understand the signs? Did you choose a yard for its part?
@@ -115,10 +120,13 @@ ours (DECISIONS #28).
 
 ## Milestone 4 — not planned yet
 
-To plan from the owner's notes on M3. Candidates: whatever the playtest finds; the M2 proposals
-(#24: a longer skid in 3D, a low-speed brake), which are rule changes and go to the 2D game first; a
-pass on the models (the 2D game's M4 replaced its placeholder look family by family); and keeping up
-with the 2D game's next rules (`npm run vendor -- --check`).
+To plan from the owner's notes on M3. The obvious candidate: **re-vendor the 2D expansion** (its
+M6-M9: the Hopper and the Jump Jets, the Bouncer and the Springs, the Spring Rammer, terrain (boost
+strips, oil, jump ramps, crusher plates), The Compactor, a six-yard run), once the 2D game has
+finished building it (DECISIONS #36): new models, airborne enemies from the seat, terrain decals,
+a boss. Also: whatever the playtest finds; the rule proposals (#24: a longer skid in 3D, a low-speed
+brake; #37: a longer Snapper slide, a slide that keeps more speed), which go to the 2D game first; a
+pass on the models.
 
 ---
 

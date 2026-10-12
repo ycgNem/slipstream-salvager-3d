@@ -8,6 +8,8 @@ import type { World } from '../sim/world';
 import type { UI } from '../ui/ui';
 import { textWidth } from '../ui/font';
 import { REAR, VIEW_H, VIEW_W } from '../render3d/view';
+import { tearable } from '../render3d/enemies3d';
+import type { PartId } from '../data/parts';
 import { wx, wz } from '../render3d/units';
 
 /** World point to the 640x360 frame (top-left origin); null if behind the camera. */
@@ -148,13 +150,20 @@ export class Overlay {
     }
   }
 
+  /** The bottom of the banner while it's up (the exit signs sit below it), else null. */
+  bannerBottom(): number | null {
+    const b = this.banner;
+    return b ? 120 - 6 + (b.sub ? 44 : 30) : null;
+  }
+
   /** The wave / yard banner, drawn last so the markers and signs never cover it. */
   drawBanner(ui: UI) {
     const b = this.banner;
     if (!b || (b.t < 0.3 && Math.floor(b.t * 20) % 2 === 1)) return;
     const y = 120;
     const tw = Math.max(textWidth(b.text) * 3, b.sub ? textWidth(b.sub) : 0);
-    ui.fill(320 - tw / 2 - 10, y - 6, tw + 20, b.sub ? 44 : 30, C.ink);
+    // whole pixels (an odd width put the box's edges on half pixels, off the palette)
+    ui.fill(320 - Math.floor(tw / 2) - 10, y - 6, tw + 20, b.sub ? 44 : 30, C.ink);
     ui.text(b.text, 320, y, C.white, { align: 'center', scale: 3, shadow: C.plum });
     if (b.sub) ui.text(b.sub, 320, y + 27, C.gold3, { align: 'center' });
   }
@@ -178,6 +187,34 @@ export function arrow(ui: UI, ax: number, ay: number, ux: number, uy: number, co
     ctx.fillStyle = PALETTE[c];
     for (let y = Math.floor(ay - r); y <= ay + r; y++)
       for (let x = Math.floor(ax - r); x <= ax + r; x++) if (inside(x + 0.5, y + 0.5, g)) ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+/**
+ * A U-turn arrow at the frame's edge (an exit behind you): it rises, bends over toward the edge
+ * and comes down, so it can't be taken for the down arrow that points onto a gate in view.
+ * (ax, ay) is the head's tip; `side` +1 on the right edge, -1 on the left.
+ */
+export function uturn(ui: UI, ax: number, ay: number, side: number, color: number) {
+  const R = 8, T = 1.6, HEAD = 7;
+  const cx = ax - side * R, cy = ay - HEAD - 4;
+  // the bend: the top half of a ring from the inner leg over to the outer one, then both legs down
+  const inside = (x: number, y: number, g: number) => {
+    const dx = x - cx, dy = y - cy;
+    if (dy <= 0) return Math.abs(Math.hypot(dx, dy) - R) <= T + g;
+    // the inner leg (toward the middle of the view) runs down a little; the outer one is the shaft
+    if (Math.abs(dx + side * R) <= T + g && dy <= 6 + g) return true;
+    if (Math.abs(dx - side * R) <= T + g && dy <= 4 + g) return true;
+    // the head, pointing down onto (ax, ay)
+    const along = ay - y, sideOff = Math.abs(x - ax);
+    return along >= -g && along <= HEAD + g && sideOff <= along * 0.8 + g * 1.3;
+  };
+  const r = R + HEAD + 8;
+  const ctx = ui.ctx;
+  for (const [g, c] of [[1, C.ink], [0, color]] as const) {
+    ctx.fillStyle = PALETTE[c];
+    for (let y = Math.floor(cy - r); y <= ay + 2; y++)
+      for (let x = Math.floor(cx - r); x <= cx + r; x++) if (inside(x + 0.5, y + 0.5, g)) ctx.fillRect(x, y, 1, 1);
   }
 }
 
@@ -236,7 +273,30 @@ export function drawMarkers(ui: UI, cam: THREE.PerspectiveCamera, rearCam: THREE
   }
   if (sides.l !== null) ui.fill(REAR.x - 3, REAR.y - 1, 2, REAR.h + 3, sides.l);
   if (sides.r !== null) ui.fill(REAR.x + REAR.w + 1, REAR.y - 1, 2, REAR.h + 3, sides.r);
+
+  // a close enemy beside you that neither the view nor the mirror shows (a Snapper pack circles in
+  // those blind spots) gets a pip on that edge: dim while it circles, blinking gold while a part of
+  // its is open to a tear, so the moment isn't lost off-screen (DECISIONS #35)
+  const blink = Math.floor(time * 10) % 2 === 0;
+  for (const r of w.enemies) {
+    if (r.state === 'windup' || (r.kind === 'rammer' ? r.state === 'charge' : r.state === 'snap')) continue; // it has an arrow
+    const p = pos(r.id);
+    if (!p || Math.hypot(p.x - cam.position.x, p.z - cam.position.z) > NEAR) continue;
+    if (shown(p.clone().project(cam)) || shown(p.clone().project(rearCam))) continue;
+    const c = p.clone().applyMatrix4(inv);
+    const ang = Math.atan2(c.x, -c.z);
+    const open = (Object.values(r.parts) as (PartId | undefined)[]).some((id) => id && tearable(r, id));
+    const col = open ? (blink ? C.gold3 : C.gold) : C.lilac;
+    // higher the more ahead it is, as the arrows are
+    const k = Math.min(1, Math.max(0, (Math.abs(ang) - 0.5) / 2.2));
+    const y = Math.round(150 + k * 120), x = ang > 0 ? 634 : 1;
+    ui.fill(x - 1, y - 1, 7, open ? 16 : 12, C.ink);
+    ui.fill(x, y, 5, open ? 14 : 10, col);
+  }
 }
+
+/** how close (m) an unseen enemy beside you has to be for its pip */
+const NEAR = 5;
 
 /** The mirror's whole frame lit in one color (gold: a Rammer behind you just opened its back). */
 export function drawMirrorFrame(ui: UI, color: number) {

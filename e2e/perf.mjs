@@ -2,7 +2,8 @@
 // the world, the claw, the rear strip, the composite and the blit), in headless SwiftShader, the
 // proxy for a weak laptop (budget >= 15 fps there; <= 60 draw calls and <= 20k triangles anywhere).
 // Plays The Heap's last wave (six enemies: two Rammers, a Plow Rammer, two Snappers, a Jaw Snapper)
-// under the hit-and-run bot. Writes e2e/out/perf.json.
+// under the hit-and-run bot, with a full build bolted on (Booster, Grip Treads, Jaws: the most view
+// models and mirror meshes there can be). Writes e2e/out/perf.json.
 // Usage: node e2e/perf.mjs
 import fs from 'node:fs';
 import { serve, launch, ready, OUT } from './serve.mjs';
@@ -16,7 +17,10 @@ try {
   res = await page.evaluate(async () => {
     const a = window.__app;
     const bots = await import('/src/sim/bots.ts');
+    const { LIVE } = await import('/src/app/tuning.ts');
+    LIVE.parts = ['booster', 'treads', 'jaws'];
     a.startPlay(11, 'heap');
+    LIVE.parts = [];
     a.play.record = false;
     const w = a.play.world;
     w.player.hull = 99;

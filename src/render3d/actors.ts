@@ -10,7 +10,7 @@ import type { MountSlot } from '../data/mounts';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { type ModelSet, instance, disposeInstance, materialsOf, meshesOf } from './models';
 import { pal, wx, wz, modelYaw, lerp } from './units';
-import type { Shadows } from './decals';
+import { shade, crackFlicker, type Whiten } from './shading';
 
 /** the layer only the rear camera draws: the player's own body */
 export const LAYER_SELF = 1;
@@ -84,16 +84,26 @@ export class Cable {
 
 // ---------------------------------------------------------------- the player's own robot
 
-/** Merge a model's meshes that share one material into one mesh (its attached parts left alone). */
+/** What makes two of a model's (per-mesh cloned) materials draw the same. */
+function look(m: THREE.Material): string {
+  const l = m as THREE.MeshLambertMaterial;
+  return [l.type, l.map?.uuid ?? '-', l.color?.getHexString() ?? '-', l.emissive?.getHexString() ?? '-', l.side, l.flatShading, l.transparent].join('|');
+}
+
+/** Merge a model's meshes that look the same into one mesh (its attached parts left alone). */
 function mergeChassis(root: THREE.Object3D, keep: THREE.Object3D[]) {
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const kept = (o: THREE.Object3D) => keep.some((k) => k === o || k.getObjectById(o.id));
   const meshes = meshesOf(root).filter((m) => !kept(m) && !Array.isArray(m.material));
-  const byMat = new Map<THREE.Material, THREE.Mesh[]>();
-  for (const m of meshes) byMat.set(m.material as THREE.Material, [...(byMat.get(m.material as THREE.Material) ?? []), m]);
-  for (const [mat, list] of byMat) {
+  const byLook = new Map<string, THREE.Mesh[]>();
+  for (const m of meshes) {
+    const k = look(m.material as THREE.Material);
+    byLook.set(k, [...(byLook.get(k) ?? []), m]);
+  }
+  for (const list of byLook.values()) {
     if (list.length < 2) continue;
+    const mat = list[0].material as THREE.Material;
     const geos = list.map((m) => {
       const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
       return g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
@@ -113,14 +123,15 @@ export class PlayerRig {
   booster: THREE.Group;
   /** the Grip Treads' guards over your own treads (the mirror sees them) */
   treads: THREE.Group;
-  shadow: THREE.Mesh;
   mountRear: THREE.Vector3;
   private bodyMats: THREE.MeshLambertMaterial[];
   private nozzleMats: THREE.MeshLambertMaterial[];
   private shellMats: THREE.MeshLambertMaterial[];
   private treadMats: THREE.MeshLambertMaterial[];
+  private shellWhiten: Whiten[];
+  private treadWhiten: Whiten[];
 
-  constructor(models: ModelSet, shadows: Shadows) {
+  constructor(models: ModelSet) {
     this.body = instance(models.get('scrapper'));
     this.mountRear = mountOf(models.get('scrapper'), 'mount_rear');
     this.booster = instance(models.get('booster'));
@@ -129,14 +140,15 @@ export class PlayerRig {
     this.treads = instance(models.get('treads'));
     this.body.add(this.treads);
     this.root.add(this.body);
-    this.shadow = shadows.make(1.0);
-    this.root.add(this.shadow);
     this.root.name = 'player';
     const own = [...materialsOf(this.booster), ...materialsOf(this.treads)];
     this.bodyMats = materialsOf(this.body).filter((m) => !own.includes(m));
     this.nozzleMats = materialsOf(this.booster.getObjectByName('nozzle_glow'));
     this.shellMats = materialsOf(this.booster.getObjectByName('shell'));
     this.treadMats = materialsOf(this.treads);
+    // salvage stays gold (shading.ts)
+    this.shellWhiten = this.shellMats.map((m) => shade(m, true));
+    this.treadWhiten = this.treadMats.map((m) => shade(m, true));
     // the chassis and its own treads are one mesh (one draw call in the mirror, not three)
     mergeChassis(this.body, [this.booster, this.treads]);
     this.bodyMats = materialsOf(this.body).filter((m) => !own.includes(m));
@@ -150,8 +162,9 @@ export class PlayerRig {
     this.booster.visible = parts.rear?.id === 'booster';
     this.treads.visible = parts.sides?.id === 'treads';
     setEmissive(this.nozzleMats, pal(C.orange), 0.3 + thrust * 1.5);
-    for (const m of this.shellMats) m.color.copy(parts.rear?.cracked ? pal(C.mist) : new THREE.Color(1, 1, 1));
-    for (const m of this.treadMats) m.color.copy(parts.sides?.cracked ? pal(C.mist) : new THREE.Color(1, 1, 1));
+    // a cracked part flickers white: it shatters on the next hit
+    for (const u of this.shellWhiten) u.value = parts.rear?.cracked ? crackFlicker(time) : 0;
+    for (const u of this.treadWhiten) u.value = parts.sides?.cracked ? crackFlicker(time, 0.5) : 0;
     if (hurt > 0) setEmissive(this.bodyMats, pal(C.danger3), 1.2);
     else setEmissive(this.bodyMats, pal(C.ink), 0);
     // treads rumble
@@ -232,6 +245,8 @@ export class Debris {
 // ---------------------------------------------------------------- the claw (view model)
 
 const TIER_GLOW: Record<Tier, number> = { crawl: C.mist, cruise: C.cruiseHi, slip: C.speed3 };
+/** the tread guards' height in the view */
+const VM_TREADS_Y = -0.86;
 
 export interface ClawPose {
   tier: Tier;
@@ -255,6 +270,8 @@ export interface ClawPose {
   sides: Bolted | null;
   /** swinging round a bitten enemy with the Jaws */
   latched: boolean;
+  /** an enemy close ahead is winding up or striking: the claw dips so you can see it */
+  duck: boolean;
 }
 
 export class ClawRig {
@@ -287,6 +304,8 @@ export class ClawRig {
   private vjl0 = 0;
   private vjr0 = 0;
   private bite = 0;
+  private duck = 0;
+  private whiten = new Map<THREE.Group, Whiten[]>();
 
   constructor(models: ModelSet) {
     this.model = instance(models.get('claw'));
@@ -336,20 +355,25 @@ export class ClawRig {
     // so you see its gold lip and face rather than its braced back
     this.vmPlow = vm('plow', 0, -0.8, -0.95, 1);
     this.vmPlow.rotation.z = 0.5;
+    // narrower than the real blade: about the claw's width, not the whole bottom of the view
+    this.vmPlow.scale.set(1, 1, 0.65);
     // the mandibles either side of the claw, a little bigger than its own jaws
     this.vmJaws = vm('jaws', 0, -0.46, -0.36, 0.95);
     this.vmJawL = this.vmJaws.getObjectByName('jaw_l');
     this.vmJawR = this.vmJaws.getObjectByName('jaw_r');
     this.vjl0 = this.vmJawL?.rotation.y ?? 0;
     this.vjr0 = this.vmJawR?.rotation.y ?? 0;
-    // the tread guards' front ends in the bottom corners (spread out to the edges of the view)
-    this.vmTreads = vm('treads', 0, -0.66, -0.62, 1);
-    this.vmTreads.scale.set(1, 1, 1.75);
+    // the tread guards' front ends low in the bottom corners, spread out to the edges of the view:
+    // a corner of gold, clear of the floor where side lanes come in (DECISIONS #35)
+    this.vmTreads = vm('treads', 0, VM_TREADS_Y, -0.62, 1);
+    this.vmTreads.scale.set(1, 1, 1.15);
+    // salvage stays gold (shading.ts)
+    for (const g of [this.vmPlow, this.vmJaws, this.vmTreads]) this.whiten.set(g, materialsOf(g).filter((m) => !m.userData.glow).map((m) => shade(m, true)));
   }
 
-  /** A cracked part is grey (it shatters on the next hit). */
-  private crack(g: THREE.Group, cracked: boolean) {
-    for (const m of materialsOf(g)) if (!m.userData.glow) m.color.copy(cracked ? pal(C.mist) : new THREE.Color(1, 1, 1));
+  /** A cracked part flickers white (it shatters on the next hit). */
+  private crack(g: THREE.Group, cracked: boolean, time: number) {
+    for (const u of this.whiten.get(g) ?? []) u.value = cracked ? crackFlicker(time) : 0;
   }
 
   /** Follow the camera and animate the rigid parts. */
@@ -377,10 +401,12 @@ export class ClawRig {
     else if (pose.burn && pose.lunge > 0) reach = 0.17;
     else if (pose.lunge > 0) reach = 0.15 * Math.sin(Math.min(1, (1 - pose.lunge) * 1.4) * Math.PI);
     this.kick = lerp(this.kick, reach, 1 - Math.exp(-dt / 0.025));
+    // ducks out of the way of a close threat (it comes straight back up to strike)
+    this.duck = lerp(this.duck, pose.duck && pose.lunge <= 0 && !pose.revving ? 1 : 0, 1 - Math.exp(-dt / 0.06));
     const shudder = pose.speed01 > 0.55 ? Math.sin(time * 97) * 0.0025 * pose.speed01 : 0;
-    this.pivot.position.set(this.sway * 0.05 + this.swing * 0.05, -0.3 + shudder - (pose.stunned ? 0.04 : 0) - this.swing * 0.05, -0.2 - this.kick);
+    this.pivot.position.set(this.sway * 0.05 + this.swing * 0.05, -0.3 + shudder - (pose.stunned ? 0.04 : 0) - this.swing * 0.05 - this.duck * 0.06, -0.2 - this.kick);
     // pitched up so the jaws and the tier glow sit in the lower middle of the view
-    this.pivot.rotation.set(0.32 - this.swing * 0.2, 0, this.sway * 0.25 + (pose.stunned ? Math.sin(time * 12) * 0.1 : 0));
+    this.pivot.rotation.set(0.32 - this.swing * 0.2 - this.duck * 0.22, 0, this.sway * 0.25 + (pose.stunned ? Math.sin(time * 12) * 0.1 : 0));
     this.model.rotation.x = this.twist;
     // jaws: open while revving or about to strike, snap shut in the lunge
     const want = pose.revving ? 0.55 : pose.lunge > 0 ? (pose.lunge > 0.6 ? 0.6 : -0.12) : pose.bolt !== null ? -0.1 : 0.12 + pose.speed01 * 0.1;
@@ -411,21 +437,21 @@ export class ClawRig {
     this.vmJaws.visible = front === 'jaws';
     this.vmTreads.visible = pose.sides?.id === 'treads';
     if (this.vmPlow.visible) {
-      this.crack(this.vmPlow, !!pose.front?.cracked);
+      this.crack(this.vmPlow, !!pose.front?.cracked, time);
       // it shoves forward with a lunge, and judders with speed
       this.vmPlow.position.set(this.sway * 0.03, -0.8 + shudder * 2, -0.95 - this.kick * 0.5);
     }
     if (this.vmJaws.visible) {
-      this.crack(this.vmJaws, !!pose.front?.cracked);
+      this.crack(this.vmJaws, !!pose.front?.cracked, time);
       // they gape with the claw, slam shut on a bite, and clamp hard while you swing round
       this.bite = lerp(this.bite, pose.latched ? -0.15 : this.open * 1.3, 1 - Math.exp(-dt / 0.03));
       if (this.vmJawL) this.vmJawL.rotation.y = this.vjl0 + this.bite * 0.6;
       if (this.vmJawR) this.vmJawR.rotation.y = this.vjr0 - this.bite * 0.6;
-      this.vmJaws.position.set(this.sway * 0.04, -0.46 + shudder, -0.36 - this.kick * 0.8);
+      this.vmJaws.position.set(this.sway * 0.04, -0.46 + shudder - this.duck * 0.05, -0.36 - this.kick * 0.8);
     }
     if (this.vmTreads.visible) {
-      this.crack(this.vmTreads, !!pose.sides?.cracked);
-      this.vmTreads.position.set(0, -0.66 + Math.sin(time * 40) * 0.003 * (0.3 + pose.speed01), -0.62);
+      this.crack(this.vmTreads, !!pose.sides?.cracked, time);
+      this.vmTreads.position.set(0, VM_TREADS_Y + Math.sin(time * 40) * 0.003 * (0.3 + pose.speed01), -0.62);
       this.vmTreads.rotation.z = this.sway * 0.05;
     }
     // the tether: the cable from your back runs past you; when the towed part swings wide on a turn

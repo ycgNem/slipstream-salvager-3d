@@ -20,10 +20,10 @@ export const SCENES = [
   'hurt', 'scrapped', 'pause', 'tuning', 'flat', 'hud-hidden', 'look-back',
   // Milestone 3: the yards, the Snapper, the new parts, the exits and the run
   'yard-kennel', 'yard-lanes', 'yard-pit', 'yard-jaws', 'yard-heap',
-  'snapper-hunt', 'snapper-windup', 'snapper-slide', 'snapper-stripped', 'snapper-behind',
+  'snapper-hunt', 'snapper-windup', 'snapper-slide', 'snapper-stripped', 'snapper-behind', 'pack-side',
   'plow-rammer', 'clang', 'jaw-snapper',
   'treads-on', 'treads-slide', 'plow-on', 'plow-ram', 'block', 'jaws-on', 'latch', 'hud-parts',
-  'exits', 'exits-away', 'wipe', 'enter-yard',
+  'exits', 'exits-banner', 'exits-away', 'exits-behind', 'wipe', 'enter-yard',
 ] as const;
 export type SceneName = (typeof SCENES)[number];
 
@@ -360,6 +360,19 @@ export function scene(app: App, name: SceneName) {
       run(play, app, 12);
       break;
     }
+    case 'pack-side': {
+      // two Snappers beside you, out of the view and the mirror: one circling (a dim pip on the
+      // right edge), one power-sliding with its side open (a blinking gold pip on the left)
+      quiet(play);
+      place(play, 200, 180, 0, 0);
+      const a = addEnemy(w, 'snapper', 196, 240, 0);
+      a.cd = 99;
+      const b = addEnemy(w, 'snapper', 214, 130, Math.PI / 2);
+      b.speed = 160;
+      toSlide(w, b, 9, 160);
+      run(play, app, 6);
+      break;
+    }
     case 'snapper-stripped': {
       quiet(play);
       place(play, 160, 140, 0, 0);
@@ -479,9 +492,22 @@ export function scene(app: App, name: SceneName) {
       run(play, app, 60);
       play.overlay.banner = null;
       break;
+    case 'exits-banner':
+      // the moment the exits open: YARD CLEARED is still up, the sign sits below it
+      place(play, 380, 190, 0, 0);
+      clearYard(play, app);
+      run(play, app, 20);
+      break;
     case 'exits-away':
       // cleared, facing north: both exits are out of view
       place(play, 320, 180, -Math.PI / 2, 0);
+      clearYard(play, app);
+      run(play, app, 60);
+      play.overlay.banner = null;
+      break;
+    case 'exits-behind':
+      // cleared, by the east exit facing west: one exit ahead, the other behind you (a U-turn arrow)
+      place(play, 470, 150, Math.PI - 0.25, 0);
       clearYard(play, app);
       run(play, app, 60);
       play.overlay.banner = null;

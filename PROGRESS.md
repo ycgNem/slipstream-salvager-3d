@@ -2,6 +2,24 @@
 
 What is built. Newest first.
 
+## 2026-10-12 — Milestone 3: the critic's and the visual QA's review
+
+- **Salvage stays gold** in shade and light; **flashes go white**; a cracked part flickers white (#35).
+- **Every part shows its tear window** (a sliding Snapper's treads blink gold, as in 2D).
+- **The pack you can't see:** hunting Snappers rumble where they are; a close enemy in a blind spot
+  is a pip on that edge (gold when it's open); a Snapper sliding in the mirror lights its frame gold.
+- **The treads' slide is aimed** by the mouse and keys while it swings, goes round the side with
+  room, and S held after it no longer cuts thrust (3 new tests).
+- **The Jaws' whip camera** holds through the hit-stop and eases out onto your fling line; **the claw
+  ducks** for a close threat ahead; smaller tread and plow view models.
+- **Exit signs** below the banner, a U-turn arrow and part icons for an exit behind you; HUD slots
+  that read as three; the banner on whole pixels; frost floodlight lamps.
+- **Draw calls with a full build:** 65 → 57 (lanes and shadows instanced, the chassis merged); perf
+  now runs with Booster, Grip Treads and Jaws bolted on.
+- **The 2D expansion (its M6-M9) is not vendored yet** (#36); the critic's rule ideas are proposals (#37).
+- **Checks:** 105 tests; smoke; 61 scenes with 0 overlaps; perf (full build: max 57 draw calls,
+  ~17k triangles, ~60 fps); coverage (16 models); whole runs (seeds 5 and 8).
+
 ## 2026-10-12 — Milestone 3: the run in first person
 
 - **The view zoomed out** at the owner's request: FOV 82-102° (was 70-92°), the eye 0.68 m up and
@@ -20,7 +38,7 @@ What is built. Newest first.
   from the enemy you bit to your fling line; three HUD slots; the M3 hints; the pause card lists
   your parts' verbs (#31, #32).
 - **Version 0.2.0**, service worker cache v2 (#33).
-- **Checks:** 105 tests; smoke; 58 scenes with 0 overlaps; perf on The Heap's last wave (max 59
+- **Checks:** 102 tests; smoke; 58 scenes with 0 overlaps; perf on The Heap's last wave (max 59
   draw calls, ~17k triangles, ~61 fps); coverage (16 models); whole runs end to end (`e2e/run.mjs`,
   #34).
 
@@ -98,4 +116,4 @@ What is built. Newest first.
 | M0 — Vendor, scaffold, 3D pipeline | done |
 | M1 — First-person parity with the 2D slice | done |
 | M2 — Playtest fixes | first pass from the critic and QA review; published; the owner's note: zoom out (#27) |
-| M3 — The run in first person | built and reviewed; waiting for the owner's playtest |
+| M3 — The run in first person | built, reviewed and fixed (#35); waiting for the owner's playtest |

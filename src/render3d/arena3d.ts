@@ -261,7 +261,8 @@ export class Arena3D {
     const lampGeo = mergeNonIndexed(
       [[-3, -3], [wx(a.w) + 3, -3], [-3, wz(a.h) + 3], [wx(a.w) + 3, wz(a.h) + 3]].map(([x, z]) => new THREE.BoxGeometry(1.2, 0.3, 0.7).toNonIndexed().translate(x, 11.85, z)),
     );
-    const lamps = new THREE.Mesh(lampGeo, new THREE.MeshBasicMaterial({ color: pal(C.gold3) }));
+    // frost, not pale gold: gold means salvage and exits (DECISIONS #35)
+    const lamps = new THREE.Mesh(lampGeo, new THREE.MeshBasicMaterial({ color: pal(C.frost) }));
     lamps.name = 'floodlights';
     // the main view only: the mirror looks low and back, and every draw call there counts
     lamps.layers.set(LAYER_MAIN);

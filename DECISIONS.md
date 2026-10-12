@@ -272,7 +272,7 @@ presentation or input, and the proposals in #24 still stand.
   Snapper, the Plow Rammer, three mounts with the Grip Treads, the Plow and the Jaws, hit zones that
   tear by mount, armor by hit side. The vendored list grew by `src/ui/signs.ts` (the exit sign's
   content, which the 2D run test checks) and the 2D `m3` and `run` tests; `vendor.json`'s
-  divergences were emptied, since nothing is kept against #21 any more. 105 tests (86 vendored, 2
+  divergences were emptied, since nothing is kept against #21 any more. 102 tests (86 vendored, 2
   drift, 14 steer, 3 of them new). *Why:* the owner asked for the next milestone, and every rule
   change the 2D game made since `e0504af` was a fix or the run itself.
 - #29: **Enemies and loose parts are instanced batches** (`src/render3d/enemies3d.ts`, THREEJS-NOTES
@@ -337,3 +337,69 @@ presentation or input, and the proposals in #24 still stand.
 - Smaller: the claw sits 3 cm lower (the zoomed-out view showed more of its arm, and a close Snapper
   hid behind it); the drift-check warning in HANDOFF no longer applies until the 2D game changes its
   rules again.
+
+## Milestone 3: the critic's and the visual QA's review (2026-10-12)
+
+Both agents played and shot M3 (`indie-critic`, `qa-screens`); every fix below is presentation or
+input. Their two rule ideas are proposals for the owner (#37).
+
+- #35: **The M3 review fixes.**
+  - **Salvage stays gold** (`src/render3d/shading.ts`). The palette snap turned a gold part's shaded
+    faces olive (a Plow Rammer's plow from the side was 92% olive) and its lit faces lime. Every
+    part's material (the enemy batches, your own robot in the mirror, the view models) now lights
+    40% of its own texture and caps a lit face at 1.15x its texture; the self-light follows the
+    tint, so a glint still flashes.
+  - **A flash goes white:** the hit flash blends the lit color toward white (per instance on the
+    batches) instead of multiplying it by 3, which saturated gold into lime and the Snapper's plum
+    into pink. **A cracked part flickers white** (the 2D game's white crack) instead of greying,
+    which on gold was olive again.
+  - **Every part shows its tear window** (the 2D game's `tearable()`, 2D #60): a Snapper's treads
+    blink gold while it slides or reels, a Plow while it charges, Jaws while they wind up. Before,
+    only the Rammer's booster did, and nothing said "now" to a Snapper's slide.
+  - **The pack you can't see:** a hunting Snapper's treads rumble where it is (`tread`, positional,
+    muffled behind you); a close enemy beside you that neither the view nor the mirror shows gets a
+    pip on that edge, dim while it circles, blinking gold while a part of its is open; a Snapper that
+    starts sliding in the mirror lights the mirror's frame gold, as a Rammer's open back does. The
+    Snapper hint names the window: "HIT ITS SIDE AT TEAL AS IT SLIDES".
+  - **The Grip Treads' slide is aimed** (`src/input3d/steer.ts`): while it swings, the mouse and the
+    keys move its exit up to 60° either side of the reversal (it can't be pushed so far past the body
+    that the sim would swing back). With no side asked for it goes round the side with room (you
+    can't see a wall beside you from the seat), else toward the nearest enemy behind you. S held on
+    after a slide no longer cuts your thrust (with the treads S isn't a brake). Tested.
+  - **The Jaws' whip camera** holds still during the bite's hit-stop (it ran ahead and snapped back,
+    a 26° sawtooth) and eases out, so the line you're flung along arrives slowly enough to read
+    (it used to arrive at the fastest spin, ~1600°/s).
+  - **The claw ducks** while an enemy within 4 m and 20° of straight ahead winds up or strikes: a close
+    Snapper hid behind it, and the Jaw Snapper's gaping jaws (its warning) were behind the claw tips.
+  - **Smaller view models:** the treads' guards are now just their gold tips beside the claw (they
+    covered a fifth of the lower view, and side lanes under it); the Plow's blade is about the claw's
+    width.
+  - **Exit signs:** below the YARD CLEARED banner while it's up (it hid the sign the moment the exits
+    opened); the arrow's tail clear of the panel; an exit out of view shows its parts' icons beside
+    its name, and once it's behind you its arrow is a U-turn, not the down arrow that points onto a
+    gate in view. Two new scenes: `exits-banner`, `exits-behind`.
+  - **Draw calls with a full build** were 65 (over the 60 budget): every lane of a kind is now one
+    instanced mesh (the four gate warnings were four meshes a pass, each windup its own), your shadow
+    joins the shadow batch, and your chassis really merges (materials cloned per mesh never matched;
+    they're grouped by how they look). `npm run perf` now plays with Booster, Grip Treads and Jaws
+    bolted on: max 57.
+  - **HUD:** the three slots are 16 px with ink gaps, an empty socket is slate (it was the slot's own
+    plum, invisible), the "goes here" line sits under the icon. The banner's box is on whole pixels
+    (an odd title width put its edges on half pixels, off the palette). The floodlights' lamps are
+    frost, not pale gold: gold means salvage and exits.
+  - Kept: the zoomed-out view (#27). The critic measured it as a modest win (blind spots 6% smaller,
+    enemies 20% smaller) that reads the floor lanes better; it won't fix the pack, the pips and the
+    rumble do.
+  - Not done: the overlap audit still doesn't see arrows and icons (drawn straight to the canvas).
+- #36: **The 3D game stays on the 2D rules at `297e40c` while the 2D expansion is being built.** The 2D
+  project is in the middle of its M6-M9 (the Hopper, the Bouncer, the Spring Rammer, terrain, The
+  Compactor, a six-yard run, committing as this was written). Re-vendoring that is a milestone of
+  new models and presentation, not a fix, and chasing it mid-build would mean re-vendoring again
+  tomorrow. Kept our copy with `node scripts/vendor.mjs --accept '#36'` (as #21 did); the drift test
+  fails again when the 2D project next changes a vendored file. **For the owner:** re-vendoring the
+  expansion once it settles is the natural Milestone 4.
+- #37: **Rule proposals from the critic (for the owner; they belong in the 2D game first):** the
+  Snapper's slide 0.6 s → 0.8 s (most of its slides start out of the view from the seat, so its open
+  side is gone before you can turn to it); the Grip Treads' slideKeep 0.88 → 0.92 (only a hairpin
+  from above ~212 px/s still exits at Slipstream, so the next rip after a slide from Cruise speed is
+  a shove).

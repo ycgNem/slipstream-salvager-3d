@@ -62,7 +62,12 @@ threejs.org/docs for the pinned one, not memory.
     the owner's PC, ≥ 15 fps in headless SwiftShader (the proxy for a weak laptop). Every pass
     counts twice (the view and the mirror), so anything with many copies is instanced: walls,
     obstacles, gate doors, and since M3 every enemy and loose part (one InstancedMesh per model piece,
-    per-instance color for flashes and glows; DECISIONS #29). Measured on The Heap's last wave.
+    per-instance color for glows and glints, a per-instance `whiten` for flashes; DECISIONS #29),
+    every floor lane of a kind and every blob shadow (#35). Measured on The Heap's last wave with a
+    full build bolted on (the most view models and mirror meshes there can be).
+14. **Salvage stays gold under the palette snap** (`src/render3d/shading.ts`, DECISIONS #35): a part's
+    material lights 40% of its own texture and caps a lit face at 1.15x it, or shade goes olive and
+    light goes lime. Flashes blend toward white; never multiply a color up (it saturates the hue).
 
 ## Testing
 

@@ -99,4 +99,8 @@ Sparks are white, frost and orange, never gold. Shadows are dithered plum blobs,
 - Telegraphs are floor decals **under** bodies: two edge lines and dither between, dashed while
   aiming, solid with flashing chevrons once locked; enemy lanes red, your Burn lane teal.
 - Flashes are palette colors over the frame edge (hurt red, tier-up teal, tear and bolt gold), and
-  a white flash on a Rammer body when it's hit.
+  a white flash on an enemy when it's hit. A cracked part flickers white (the 2D white crack).
+- A part open to a tear blinks gold at 10 Hz (the 2D glint): a Rammer's open back, a charging Plow,
+  a sliding Snapper's treads, winding-up Jaws. A close enemy beside you that you can't see is a pip
+  on that edge: lilac while it circles, blinking gold while it's open (DECISIONS #35).
+- Parts stay gold in shade and in light: a part lights some of its own texture (THREEJS-NOTES 14).

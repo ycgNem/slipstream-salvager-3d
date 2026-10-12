@@ -58,15 +58,16 @@ export function drawHud(ui: UI, w: World, o: HudOpts) {
   ui.fill(left - 4, sy - 1, 640 - left + 2, 18, C.ink);
   MOUNTS.forEach((m, i) => {
     const b = p.parts[m], x = slotX(i);
-    ui.fill(x - 1, sy, 18, 16, C.floor0);
+    // 16 px slots with 2 px of ink between them, so three empty ones read as three
+    ui.fill(x, sy, 16, 16, C.floor0);
     if (b) partIcon(ui, b.id, x, sy, b.cracked);
     else {
-      // an empty mount: a dim socket
-      ui.fill(x + 5, sy + 5, 6, 6, C.plum);
+      // an empty mount: a socket ring (slate: plum is the slot's own color)
+      ui.fill(x + 5, sy + 5, 6, 6, C.slate);
       ui.fill(x + 6, sy + 6, 4, 4, C.ink);
     }
-    // the slot a towed part will go on
-    if (p.tow && PARTS[p.tow.part].mount === m) ui.fill(x, sy + 15, 16, 1, bolting ? C.gold : C.gold0);
+    // the slot a towed part will go on: a line under it, clear of the icon
+    if (p.tow && PARTS[p.tow.part].mount === m) ui.fill(x, sy + 16, 16, 1, bolting ? C.gold : C.gold0);
   });
   if (tow) {
     ui.text(tow, slotX(0) - 6, sy + 4, C.gold3, { align: 'right' });

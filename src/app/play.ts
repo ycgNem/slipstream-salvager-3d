@@ -204,11 +204,22 @@ export class Play {
       // a hard turn scrubbing speed squeals (once per turn), so the cost of the mouse flick is heard
       if (this.steer.scrub && !this.scrubbing) this.host.audio.sfx('skid', 0.45, 1.3);
       this.scrubbing = this.steer.scrub;
-      // a Rammer behind you that goes into its skid has its back to you: the tear is on
+      // a Rammer behind you that goes into its skid has its back to you, a Snapper in the mirror that
+      // goes into a slide has its side to you: the tear is on (DECISIONS #35)
       for (const r of w.enemies) {
+        const was = this.rstate.get(r.id);
+        const opened = r.kind === 'rammer'
+          ? r.parts.rear === 'booster' && r.state === 'skid' && was === 'charge' && this.outOfView(r.id)
+          : r.parts.sides === 'treads' && r.state === 'slide' && was !== 'slide' && this.outOfView(r.id) && this.inCam(r.id, this.host.stage.rig.rear);
         // (not the one that just hit you: red and gold at once says nothing)
-        if (r.kind === 'rammer' && r.parts.rear === 'booster' && r.state === 'skid' && this.rstate.get(r.id) === 'charge' && this.outOfView(r.id) && this.hurt <= 0) this.mirrorGold = 0.7;
+        if (opened && this.hurt <= 0) this.mirrorGold = 0.7;
         this.rstate.set(r.id, r.state);
+      }
+      // a hunting Snapper's treads rumble where it is, so a pack circling in your blind spots is heard
+      for (const r of w.enemies) {
+        if (r.kind !== 'snapper' || (r.state !== 'hunt' && r.state !== 'enter') || (w.stats.ticks + r.id * 7) % 18 !== 0) continue;
+        const d = Math.hypot(r.x - w.player.x, r.y - w.player.y);
+        if (d < 200) this.host.audio.sfxAt('tread', 'r' + r.id, { x: wx(r.x), y: 0.3, z: wz(r.y) }, 0.5 * (1 - d / 200) + 0.15, r.parts.sides ? 1 : 0.7);
       }
     } else this.steer.held();
     for (const e of w.events) this.handle(e);
@@ -534,7 +545,7 @@ export class Play {
     const covered = !!this.wipe && wipeCover(this.wipe.t) >= 0.83;
     const showHud = !this.hudHidden && !this.over && !this.paused && !covered;
     if (!covered) {
-      this.signBoxes = !this.paused && !this.over ? drawExitSigns(ui, stage.camera, w, this.run, this.time, true) : [];
+      this.signBoxes = !this.paused && !this.over ? drawExitSigns(ui, stage.camera, w, this.run, this.time, true, this.overlay.bannerBottom()) : [];
       this.overlay.draw(ui, stage.camera, w, {
         // against the sim's heading, not the interpolated one, so a key turn doesn't make it flicker
         reticle: showHud && !this.autopilot && !w.result ? wrapAngle(this.steer.demand - w.player.heading) : null,

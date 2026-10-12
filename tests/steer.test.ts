@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { step } from '../src/sim/tick';
 import { createWorld, giveBolted, type World } from '../src/sim/world';
-import { KEY_RATE, MAX_OFF, MAX_PEND, PEND_TIME, Steer, type SteerIn } from '../src/input3d/steer';
+import { KEY_RATE, MAX_OFF, MAX_PEND, PEND_TIME, SLIDE_AIM, Steer, type SteerIn } from '../src/input3d/steer';
 import { openArena } from './helpers';
 import { wrapAngle } from '../src/data/dirs';
 
@@ -199,5 +199,48 @@ describe('first-person steering with the Grip Treads (DECISIONS #31)', () => {
       w.events.length = 0;
     }
     expect(slides).toBe(1);
+  });
+
+  it('the mouse aims the slide while it swings (DECISIONS #35)', () => {
+    const exit = (mouseDx: number) => {
+      const w = world(), s = new Steer();
+      giveBolted(w, 'treads');
+      drive(w, s, { thrust: 1 }, 120);
+      const h0 = w.player.heading;
+      drive(w, s, { brake: true, right: true }, 2);
+      let n = 0;
+      while (w.player.slide && n++ < 60) drive(w, s, { thrust: 1, mouseDx }, 1);
+      drive(w, s, { thrust: 1 }, 30);
+      return wrapAngle(w.player.heading - h0);
+    };
+    const straight = exit(0), more = exit(25), less = exit(-25);
+    // sliding round to the right: mouse right turns it further round, mouse left stops it short
+    expect(Math.abs(straight)).toBeGreaterThan(2.9);
+    expect(wrapAngle(more - straight)).toBeGreaterThan(0.2);
+    expect(wrapAngle(straight - less)).toBeGreaterThan(0.2);
+    // never past the aim's reach either side of the reversal
+    expect(Math.abs(wrapAngle(more - Math.PI))).toBeLessThan(SLIDE_AIM + 0.15);
+    expect(Math.abs(wrapAngle(less - Math.PI))).toBeLessThan(SLIDE_AIM + 0.15);
+  });
+
+  it('with no side asked for, it slides round the side with room (not into a wall)', () => {
+    const w = createWorld({ sandbox: true, arena: openArena(4000, 4000, { x: 200, y: 3955, heading: 0 }) }), s = new Steer();
+    giveBolted(w, 'treads');
+    drive(w, s, { thrust: 1 }, 120);
+    const h0 = w.player.heading;
+    drive(w, s, { brake: true }, 6);
+    // the wall is on the right (+y): it swings left
+    expect(Math.sign(wrapAngle(w.player.heading - h0))).toBe(-1);
+  });
+
+  it('S held on after a slide does not cut your thrust', () => {
+    const w = world(), s = new Steer();
+    giveBolted(w, 'treads');
+    drive(w, s, { thrust: 1 }, 120);
+    let n = 0;
+    drive(w, s, { thrust: 1, brake: true }, 2);
+    while (w.player.slide && n++ < 60) drive(w, s, { thrust: 1, brake: true }, 1);
+    drive(w, s, { thrust: 1, brake: true }, 60);
+    expect(w.player.speed).toBeGreaterThan(w.t.slipAt);
   });
 });

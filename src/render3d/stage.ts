@@ -16,7 +16,7 @@ import { Arena3D, disposeArena } from './arena3d';
 import { CameraRig } from './camera';
 import { ClawRig, Cable, Debris, PlayerRig } from './actors';
 import { EnemyBatch } from './enemies3d';
-import { Lane, Shadows, SkidMarks } from './decals';
+import { Lanes, SkidMarks } from './decals';
 import type { ModelSet } from './models';
 import { Particles } from './particles';
 import { lerp, lerpAngle, pal, wx, wz } from './units';
@@ -66,10 +66,10 @@ export class Stage {
   particles = new Particles();
   debris = new Debris();
   skids = new SkidMarks();
-  shadows = new Shadows();
-  burnLane = new Lane('burn');
-  gateLanes = new Map<string, Lane>();
-  exitLanes = new Map<string, Lane>();
+  burnLane = new Lanes('burn', 1);
+  /** the gates' red warning chevrons, and an open exit's gold ones */
+  gateLanes = new Lanes('gate');
+  exitLanes = new Lanes('exit');
   player: PlayerRig;
   claw: ClawRig;
   cable = new Cable();
@@ -93,7 +93,7 @@ export class Stage {
     this.arena = new Arena3D(RING, models);
     this.enemies = new EnemyBatch(models, this.scene);
     this.scene.add(this.arena.group, this.enemies.group, this.particles.points, this.debris.mesh, this.skids.mesh, this.burnLane.mesh, this.cable.line);
-    this.player = new PlayerRig(models, this.shadows);
+    this.player = new PlayerRig(models);
     this.scene.add(this.player.root);
     this.claw = new ClawRig(models);
     this.vm.add(this.claw.anchor);
@@ -101,13 +101,7 @@ export class Stage {
     const sun = new THREE.DirectionalLight(pal(C.peach), 2.6);
     sun.position.set(-6, 14, -9);
     this.vm.add(hemi, sun);
-    for (const g of RING.gates) {
-      const l = new Lane('gate');
-      this.gateLanes.set(g.id, l);
-      const x = new Lane('exit');
-      this.exitLanes.set(g.id, x);
-      this.scene.add(l.mesh, x.mesh);
-    }
+    this.scene.add(this.gateLanes.mesh, this.exitLanes.mesh);
   }
 
   get camera() {
@@ -337,10 +331,12 @@ export class Stage {
   private latchYaw(w: World, alpha: number): number | null {
     const L = w.player.latch;
     if (!L) return null;
-    const f = Math.min(1, (L.t + alpha * DT) / w.t.latchTime);
-    const a = L.a0 + L.dir * Math.PI * 2 * f;
+    // (no interpolating ahead while hit-stop holds the sim: the swing would run on and snap back)
+    const f = Math.min(1, (L.t + (w.hitstop > 0 ? 0 : alpha) * DT) / w.t.latchTime);
+    // eased at both ends, so the line you're flung out along arrives slowly enough to read
+    // (DECISIONS #35); the sim's own heading runs a full turn round the enemy plus a half
     const ease = f * f * (3 - 2 * f);
-    return a + Math.PI - L.dir * Math.PI * ease;
+    return L.a0 + Math.PI + L.dir * Math.PI * ease;
   }
 
   /** Pose everything for this frame. */
@@ -377,11 +373,18 @@ export class Stage {
     this.player.sync(px, py, ph, p.parts, thrust, o.hurt, time);
     this.player.root.updateMatrixWorld(true);
     const lunge = p.rip ? p.rip.t / (p.rip.burn ? t.burnTime : t.ripTime) : 0;
+    // an enemy close ahead winding up or striking: the claw ducks so you can see it (DECISIONS #35)
+    let duck = false;
+    for (const e of w.enemies) {
+      if (e.state !== 'windup' && e.state !== 'snap' && e.state !== 'charge') continue;
+      const dx = e.x - px, dy = e.y - py;
+      if (dx * dx + dy * dy < 80 * 80 && Math.abs(wrapAngle(Math.atan2(dy, dx) - ph)) < 0.35) duck = true;
+    }
     this.claw.sync(this.rig.cam, {
       tier: p.tier, lunge, burn: !!p.rip?.burn, revving: revving(w), bolt: p.bolt, boltTime: t.boltTime,
       omega: p.omega, speed01: p.speed / t.burnMax, hidden: this.rig.mode !== 'fp' || this.rig.look > 0.4, stunned: p.stun > 0,
       towSwing: p.tow ? wrapAngle(Math.atan2(p.tow.y - py, p.tow.x - px) - (ph + Math.PI)) * -1 : null,
-      front: w.flat ? null : p.parts.front ?? null, sides: w.flat ? null : p.parts.sides ?? null, latched: !!p.latch,
+      front: w.flat ? null : p.parts.front ?? null, sides: w.flat ? null : p.parts.sides ?? null, latched: !!p.latch, duck,
     }, time, dt);
 
     // the Burn lane
@@ -393,7 +396,9 @@ export class Stage {
     } else this.burnLane.hide();
 
     // enemies, loose parts and the towed part: instanced batches
-    this.enemies.begin();
+    this.enemies.begin(time);
+    // your own shadow is one more in the batch
+    this.enemies.shadowAt(wx(px), wz(py), 1.0);
     const live = new Set<number>();
     for (const r of w.enemies) {
       live.add(r.id);
@@ -423,15 +428,15 @@ export class Stage {
     this.enemies.end();
 
     // gates: a warning's red chevrons in, an open exit's gold chevrons out
+    this.gateLanes.begin();
+    this.exitLanes.begin();
     for (const g of w.arena.gates) {
-      const lane = this.gateLanes.get(g.id)!;
-      if (this.arena.warn[g.id] > 0) lane.set(g.spawn.x - g.dir.x * 14, g.spawn.y - g.dir.y * 14, Math.atan2(g.dir.y, g.dir.x), 100, 32, false, time);
-      else lane.hide();
-      const exit = this.exitLanes.get(g.id)!;
-      if (this.arena.exit[g.id]) exit.set(g.spawn.x + g.dir.x * 70, g.spawn.y + g.dir.y * 70, Math.atan2(-g.dir.y, -g.dir.x), 84, 32, false, time);
-      else exit.hide();
+      if (this.arena.warn[g.id] > 0) this.gateLanes.add(g.spawn.x - g.dir.x * 14, g.spawn.y - g.dir.y * 14, Math.atan2(g.dir.y, g.dir.x), 100, 32, false);
+      if (this.arena.exit[g.id]) this.exitLanes.add(g.spawn.x + g.dir.x * 70, g.spawn.y + g.dir.y * 70, Math.atan2(-g.dir.y, -g.dir.x), 84, 32, false);
       if (this.arena.open[g.id] > 0 && !this.arena.exit[g.id]) this.arena.open[g.id] = Math.max(0, this.arena.open[g.id] - dt / (t.enterTime + 0.8));
     }
+    this.gateLanes.end(time);
+    this.exitLanes.end(time);
     this.arena.update(dt, time);
     this.particles.update(dt);
     this.debris.update(dt);

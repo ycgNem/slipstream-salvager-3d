@@ -383,6 +383,11 @@ export class Audio {
       case 'skid':
         this.noise(0.22, 0.12 * v, 'bandpass', 2400, 5, 0, 0.7);
         break;
+      case 'tread':
+        // a Snapper's treads: a low clatter (stripped, pitched down: bare axles)
+        this.noise(0.09, 0.16 * v, 'lowpass', 420, 2, 0, 0.8);
+        this.tone(62, 'square', { a: 0.004, d: 0.07 }, 0.05 * v, 0, 0.9);
+        break;
       case 'slipstream':
         this.tone(880, 'triangle', { a: 0.005, d: 0.12 }, 0.035 * v);
         this.tone(1320, 'triangle', { a: 0.005, d: 0.16 }, 0.03 * v, 0.05);
