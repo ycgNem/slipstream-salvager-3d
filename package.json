@@ -1,7 +1,7 @@
 {
   "name": "slipstream-salvager-3d",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "First person: a fast scrap robot rips parts off enemies at full speed and bolts them onto itself. The 3D version of Slipstream Salvager.",
   "author": "jacksonwalley",

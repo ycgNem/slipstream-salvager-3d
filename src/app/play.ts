@@ -597,17 +597,23 @@ export class Play {
     if (ui.button('p-settings', x + 15, y + 84, 110, 18, 'SETTINGS')) this.host.openSettings();
     if (ui.button('p-title', x + 15, y + 108, 110, 18, 'TITLE')) this.host.toTitle();
     // how first person works, in a few lines (nothing else teaches the reticle or the brake)
-    const k = this.keys;
+    const k = this.keys, parts = this.world.player.parts, flat = this.world.flat;
     const lines = [
-      'W THRUST    S BRAKE (IT NEVER REVERSES OR FLIPS YOU)',
+      parts.sides?.id === 'treads' && !flat ? `W THRUST    ${k.brake} AT SPEED: POWER-SLIDE ROUND (GRIP TREADS)` : 'W THRUST    S BRAKE (IT NEVER REVERSES OR FLIPS YOU)',
       'MOUSE OR A/D STEER: THE BODY TURNS AT ITS OWN RATE',
       'THE RETICLE IS WHERE YOU ASKED TO GO; HARD TURNS COST SPEED',
       `${k.rip} RIP    ${k.bolt} BOLT ON    ${k.look} LOOK BACK    H HIDE HUD`,
       'THE MIRROR AT THE TOP IS BEHIND YOU',
     ];
+    // what your bolted parts do to your verbs (2D PLAN.md 8.2)
+    if (!flat) {
+      if (parts.rear?.id === 'booster') lines.push(`BOOSTER: HOLD ${k.rip} TO REV A BURN, LET GO TO LAUNCH`);
+      if (parts.front?.id === 'plow') lines.push('PLOW: DRIVE INTO THEM AT TEAL; IT BLOCKS CHARGES');
+      if (parts.front?.id === 'jaws') lines.push('JAWS: A TEAL HIT BITES ON AND SLINGS YOU BACK OUT');
+    }
     const ly = y + h + 8;
-    ui.panel(150, ly, 340, lines.length * 12 + 10, 'dark');
-    lines.forEach((t, i) => ui.text(t, 320, ly + 6 + i * 12, i === 4 ? C.frost : C.mist, { align: 'center' }));
+    ui.panel(130, ly, 380, lines.length * 12 + 10, 'dark');
+    lines.forEach((t, i) => ui.text(t, 320, ly + 6 + i * 12, i === 4 ? C.frost : i > 4 ? C.gold3 : C.mist, { align: 'center' }));
   }
 
   private drawResults(ui: UI) {

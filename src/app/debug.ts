@@ -253,6 +253,10 @@ export function scene(app: App, name: SceneName) {
       break;
     }
     case 'pause':
+      // with a full build, so the card lists what each part does
+      giveBolted(w, 'booster');
+      giveBolted(w, 'treads');
+      giveBolted(w, 'jaws');
       run(play, app, 120);
       play.paused = true;
       break;

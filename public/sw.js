@@ -1,6 +1,7 @@
-// Offline support: the game is fully procedural, so caching the page and its one script is enough.
+// Offline support: the page, its script and the models. Bump CACHE with every release: models and
+// icons aren't hashed, so a new cache name is what makes returning players fetch the new ones.
 // Pages are fetched network-first (updates arrive), hashed assets cache-first.
-const CACHE = 'salvager3d-v1';
+const CACHE = 'salvager3d-v2';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './manifest.webmanifest', './icon-192.png'])).then(() => self.skipWaiting()));

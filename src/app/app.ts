@@ -20,6 +20,7 @@ import { Stage, snapshot, type Snap } from '../render3d/stage';
 import { Play } from './play';
 import { loadBest, loadSettings, saveSettings, type Settings } from './settings';
 import { scene, SCENES, type SceneName } from './debug';
+import { version } from '../../package.json';
 
 export { VIEW_W, VIEW_H };
 
@@ -225,6 +226,7 @@ export class App {
     }
     ui.fill(0, 334, VIEW_W, 26, C.ink);
     ui.text('A RUN OF FIVE YARDS - TEAR PARTS OFF, BOLT THEM ON', 320, 340, C.slate, { align: 'center' });
+    ui.text(`V${version}`, 4, 350, C.slate);
     if (DEBUG_KEYS) ui.text('` TUNING IN PLAY', 636, 350, C.slate, { align: 'right' });
   }
 
