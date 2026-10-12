@@ -8,6 +8,7 @@ import type { World } from '../sim/world';
 import type { UI } from '../ui/ui';
 import { textWidth } from '../ui/font';
 import { REAR, VIEW_H, VIEW_W } from '../render3d/view';
+import { wx, wz } from '../render3d/units';
 
 /** World point to the 640x360 frame (top-left origin); null if behind the camera. */
 export function project(cam: THREE.Camera, p: THREE.Vector3): { x: number; y: number } | null {
@@ -72,14 +73,15 @@ export class Overlay {
       if (this.banner.t > this.banner.life) this.banner = null;
     }
     // speed lines: pixel streaks that start near the frame edge and race outward
-    const want = Math.round(speedLines * 26);
-    while (this.lines.length < want) this.lines.push({ a: this.rnd() * Math.PI * 2, r: 0.55 + this.rnd() * 0.3, v: 1.6 + this.rnd() * 1.6, len: 0.05 + this.rnd() * 0.12, c: this.rnd() < 0.3 ? C.speed4 : this.rnd() < 0.6 ? C.speed3 : C.frost });
+    // never negative: the tier can still read 'slip' in the tick a hit cuts the speed (a crash, before)
+    const want = Math.max(0, Math.min(26, Math.round(speedLines * 26)));
+    while (this.lines.length < want) this.lines.push({ a: this.rnd() * Math.PI * 2, r: 0.55 + this.rnd() * 0.3, v: 1.6 + this.rnd() * 1.6, len: 0.05 + this.rnd() * 0.12, c: this.rnd() < 0.3 ? C.speed4 : this.rnd() < 0.6 ? C.speed3 : C.speedSky });
     for (const l of this.lines) l.r += l.v * dt;
     this.lines = this.lines.filter((l) => l.r < 1.25);
     if (this.lines.length > want) this.lines.length = want;
   }
 
-  draw(ui: UI, cam: THREE.Camera, w: World | null, opts: { reticle: number | null; hfov: number; stun: boolean; time: number; rear: boolean }) {
+  draw(ui: UI, cam: THREE.Camera, w: World | null, opts: { reticle: number | null; scrub: boolean; hfov: number; stun: boolean; time: number; rear: boolean }) {
     const ctx = ui.ctx;
     // speed lines, anchored to the frame edges (never over the rear strip)
     const top = opts.rear ? REAR.y + REAR.h + 3 : 0;
@@ -92,22 +94,32 @@ export class Overlay {
       pxLine(ctx, x0, y0, x1, y1, l.c);
     }
     // the steer reticle: where you've asked the nose to go, drifting from the nose tick when you ask
-    // for more turn than the body can give (the scrub made visible)
+    // for more turn than the body can give; a demand past the view's edge is pinned there with an
+    // arrow, and it blinks white while the turn scrubs speed (DECISIONS #23)
     if (opts.reticle !== null) {
       const half = THREE.MathUtils.degToRad(opts.hfov) / 2;
-      const off = Math.max(-1.4, Math.min(1.4, opts.reticle));
-      const rx = Math.round(320 + (Math.tan(Math.max(-half * 0.98, Math.min(half * 0.98, off))) / Math.tan(half)) * 320);
+      const off = opts.reticle;
+      const pinned = Math.abs(off) > half * 0.92;
+      const rx = pinned ? (off > 0 ? 612 : 28) : Math.round(320 + (Math.tan(off) / Math.tan(half)) * 320);
       const ry = 196;
       // the nose tick
       ui.fill(319, ry - 3, 2, 2, C.frost);
       ui.fill(319, ry + 3, 2, 2, C.frost);
       if (Math.abs(rx - 320) > 2) {
-        const c = Math.abs(off) > 0.5 ? C.cruiseHi : C.mist;
+        const c = opts.scrub && Math.floor(opts.time * 16) % 2 === 0 ? C.white : Math.abs(off) > 0.5 ? C.cruiseHi : C.mist;
         ui.fill(rx - 3, ry, 2, 2, c);
         ui.fill(rx + 2, ry, 2, 2, c);
         ui.fill(rx - 1, ry - 2, 2, 1, c);
         ui.fill(rx - 1, ry + 3, 2, 1, c);
         for (let x = Math.min(rx, 320) + 3; x < Math.max(rx, 320) - 3; x += 3) ui.fill(x, ry + 1, 1, 1, C.slate);
+        if (pinned) {
+          // the rest of the turn is still to come: a chevron beyond the reticle
+          const d = off > 0 ? 1 : -1;
+          for (let i = 0; i < 4; i++) {
+            ui.fill(rx + d * (7 + i), ry - 3 + i, 1, 1, c);
+            ui.fill(rx + d * (7 + i), ry + 4 - i, 1, 1, c);
+          }
+        }
       }
     }
     // floating texts
@@ -143,44 +155,84 @@ export class Overlay {
   }
 }
 
+/** A filled arrow, tip at (ax, ay), pointing along (ux, uy), outlined in ink; whole pixels. */
+function arrow(ui: UI, ax: number, ay: number, ux: number, uy: number, color: number) {
+  const px = -uy, py = ux;
+  const HEAD = 11, LEN = 22, SHAFT = 2.5;
+  // inside the arrow grown by g pixels (the ink outline is the shape grown by 1)
+  const inside = (x: number, y: number, g: number) => {
+    const dx = x - ax, dy = y - ay;
+    const along = -(dx * ux + dy * uy), side = Math.abs(dx * px + dy * py);
+    if (along < -g || along > LEN + g) return false;
+    if (along <= HEAD) return side <= along * 0.8 + g * 1.3;
+    return side <= SHAFT + g;
+  };
+  const r = LEN + 3;
+  const ctx = ui.ctx;
+  for (const [g, c] of [[1, C.ink], [0, color]] as const) {
+    ctx.fillStyle = PALETTE[c];
+    for (let y = Math.floor(ay - r); y <= ay + r; y++)
+      for (let x = Math.floor(ax - r); x <= ax + r; x++) if (inside(x + 0.5, y + 0.5, g)) ctx.fillRect(x, y, 1, 1);
+  }
+}
+
 /**
- * Edge markers: a Rammer winding up (or charging) where the main view can't see it gets an arrow
- * on the frame edge in its direction (behind you is the bottom edge), grey while it is still
- * aiming, flashing danger red once its lane locks, solid red while it charges.
+ * Edge markers for a Rammer winding up (or charging) where neither the view nor the mirror shows it:
+ * a long filled arrow pointing where it is, compass-style (ahead is up, behind is down). Ahead of
+ * you it sits on the frame's side edge; behind you it sits beside the mirror, and that side of the
+ * mirror's frame lights up (the mirror is where you look for things behind). Light grey while it is
+ * still aiming, flashing danger red once its lane locks, solid red while it charges. A gate about
+ * to open gets one too, flashing red (DECISIONS #15).
  */
-export function drawMarkers(ui: UI, cam: THREE.PerspectiveCamera, w: World, pos: (id: number) => THREE.Vector3 | null, time: number, rear: boolean) {
+export function drawMarkers(ui: UI, cam: THREE.PerspectiveCamera, rearCam: THREE.PerspectiveCamera, w: World, pos: (id: number) => THREE.Vector3 | null, time: number) {
   const inv = new THREE.Matrix4().copy(cam.matrixWorld).invert();
-  const top = rear ? REAR.y + REAR.h + 6 : 8;
+  const sides: { l: number | null; r: number | null } = { l: null, r: null };
+  const shown = (v: THREE.Vector3) => v.z < 1 && v.z > -1 && Math.abs(v.x) < 0.97 && Math.abs(v.y) < 0.97;
+  const rank = (c: number) => (c === C.danger3 ? 2 : c === C.dangerPink ? 1 : 0);
+  const flash = Math.floor(time * 12) % 2 === 1;
+  const threats: { p: THREE.Vector3; col: number; gate?: boolean }[] = [];
   for (const r of w.rammers) {
     if (r.state !== 'windup' && r.state !== 'charge') continue;
     const p = pos(r.id);
     if (!p) continue;
-    const v = p.clone().project(cam);
-    if (v.z < 1 && Math.abs(v.x) < 0.98 && Math.abs(v.y) < 0.98) continue; // in view
-    const c = p.clone().applyMatrix4(inv); // camera space: x right, z toward the viewer
-    // the direction on screen: forward is up, right is right, behind is down
-    const dx = c.x, dy = c.z;
-    const m = Math.hypot(dx, dy) || 1;
-    const ux = dx / m, uy = dy / m;
-    // from the centre to the inset frame edge
-    const cx = 320, cy = 200, hx = 300, hyTop = cy - top, hyBot = 360 - 26 - cy;
-    const kx = Math.abs(ux) > 1e-6 ? hx / Math.abs(ux) : Infinity;
-    const ky = uy < 0 ? hyTop / -uy : uy > 0 ? hyBot / uy : Infinity;
-    const k = Math.min(kx, ky);
-    const ax = Math.round(cx + ux * k), ay = Math.round(cy + uy * k);
     const locked = r.state === 'charge' || r.locked;
-    const flash = r.state === 'windup' && r.locked && Math.floor(time * 12) % 2 === 1;
-    const col = r.state === 'charge' ? C.danger3 : locked ? (flash ? C.dangerPink : C.danger3) : C.mist;
-    // an arrow: a filled triangle pointing outward, outlined in ink
-    const tri = (s: number, color: number) => {
-      const bx = ax - ux * 10, by = ay - uy * 10, px = -uy, py = ux;
-      for (let t = 0; t <= 1.0001; t += 0.1) {
-        const lx = bx + px * s * (1 - t) + ux * 10 * t, ly = by + py * s * (1 - t) + uy * 10 * t;
-        const rx = bx - px * s * (1 - t) + ux * 10 * t, ry = by - py * s * (1 - t) + uy * 10 * t;
-        pxLine(ui.ctx, lx, ly, rx, ry, color);
-      }
-    };
-    tri(8, C.ink);
-    tri(6, col);
+    threats.push({ p, col: r.state === 'charge' ? C.danger3 : locked ? (flash ? C.dangerPink : C.danger3) : C.frost });
   }
+  // a gate about to open (the wave's warning)
+  if (w.wave.phase === 'warn')
+    for (const g of w.wave.gates) threats.push({ p: new THREE.Vector3(wx(g.spawn.x), 0.5, wz(g.spawn.y)), col: flash ? C.dangerPink : C.danger3, gate: true });
+  for (const { p, col, gate } of threats) {
+    if (shown(p.clone().project(cam))) {
+      // a warned gate in view is often 20 m off and a few pixels tall: an arrow drops onto it
+      if (gate) {
+        const s = project(cam, new THREE.Vector3(p.x, 2.6, p.z));
+        if (s) arrow(ui, s.x, Math.max(REAR.y + REAR.h + 30, s.y) - 4 + (Math.floor(time * 6) % 2) * 2, 0, 1, col);
+      }
+      continue;
+    }
+    const c = p.clone().applyMatrix4(inv); // camera space: x right, z toward the viewer
+    const ang = Math.atan2(c.x, -c.z); // 0 ahead, + right, ±π behind
+    const behind = Math.abs(ang) > Math.PI / 2;
+    if (behind && shown(p.clone().project(rearCam))) continue; // the mirror shows it
+    const ux = Math.sin(ang), uy = -Math.cos(ang);
+    const right = ang > 0;
+    if (!behind) {
+      // on the side edge, higher the more ahead it is
+      const k = Math.min(1, Math.max(0, (Math.abs(ang) - 0.5) / 1.1));
+      arrow(ui, right ? 633 : 6, Math.round(130 + k * 110), ux, uy, col);
+    } else {
+      arrow(ui, right ? REAR.x + REAR.w + 26 : REAR.x - 26, REAR.y + 34, ux, uy, col);
+      const side = right ? 'r' : 'l';
+      if (sides[side] === null || rank(col) > rank(sides[side]!)) sides[side] = col;
+    }
+  }
+  if (sides.l !== null) ui.fill(REAR.x - 3, REAR.y - 1, 2, REAR.h + 3, sides.l);
+  if (sides.r !== null) ui.fill(REAR.x + REAR.w + 1, REAR.y - 1, 2, REAR.h + 3, sides.r);
+}
+
+/** The mirror's whole frame lit in one color (gold: a Rammer behind you just opened its back). */
+export function drawMirrorFrame(ui: UI, color: number) {
+  ui.fill(REAR.x - 3, REAR.y - 1, 2, REAR.h + 3, color);
+  ui.fill(REAR.x + REAR.w + 1, REAR.y - 1, 2, REAR.h + 3, color);
+  ui.fill(REAR.x - 3, REAR.y + REAR.h + 1, REAR.w + 6, 2, color);
 }

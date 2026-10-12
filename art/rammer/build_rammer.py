@@ -168,7 +168,8 @@ def paint():
     # ---- hull back: purple back plate, socket hole, two sage vent grilles
     x, y, w, h = R_BACK
     c.rect(x, y, w, h, PURPLE[0])
-    c.panel(x + 1, y + 1, w - 2, h - 5, PURPLE, outline=PLUM)
+    # one step lighter than the hull, so a stripped back still reads at 15 m (QA, DECISIONS #23)
+    c.panel(x + 1, y + 1, w - 2, h - 5, (50, 51, 52), outline=PLUM)
     c.panel(x, y + 15, w, 5, SAGE, outline=PLUM)          # bumper bar
     for bx in (3, 10, 19, 26):
         c.rivet(x + bx, y + 17, SAGE[2], PLUM)
@@ -178,7 +179,7 @@ def paint():
     for j in range(-6, 7):
         for i in range(-6, 7):
             if math.hypot(i + 0.5, j + 0.5) <= 6.6:
-                c.set(cx + i, cy + j, SLATE[0])
+                c.set(cx + i, cy + j, 47)                 # a light blue rim round the socket
             if math.hypot(i + 0.5, j + 0.5) <= 5.2:
                 c.set(cx + i, cy + j, PLUM)
     c.rect(cx - 2, cy - 2, 4, 4, 1)                       # coupling boss

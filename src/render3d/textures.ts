@@ -46,7 +46,8 @@ export function shadowTexture(): THREE.CanvasTexture {
  * dithered in palette colors. Mapped onto a big cylinder around the arena.
  */
 export function skyTexture(): THREE.CanvasTexture {
-  const W = 256, H = 64;
+  // 1024 across the whole cylinder, so a sky texel is about a frame pixel, not a 4x4 block
+  const W = 1024, H = 256;
   return canvasTexture(W, H, (ctx) => {
     // flat bands, top to the horizon, with a two-row checker where they meet
     const bands = [0, 1, 49, 50, 54];
@@ -63,11 +64,34 @@ export function skyTexture(): THREE.CanvasTexture {
     // a few stars
     let s = 7;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-    for (let k = 0; k < 40; k++) {
+    for (let k = 0; k < 160; k++) {
       ctx.fillStyle = PALETTE[rnd() < 0.3 ? 8 : 6];
       ctx.fillRect(Math.floor(rnd() * W), Math.floor(rnd() * H * 0.4), 1, 1);
     }
   });
+}
+
+/**
+ * The floor's plate seams and rivets as a glow map over the floor tile (art/arena/build_floor.py
+ * draws the same joints in ink): plum seams, slate rivets, unlit, so they stay one palette step
+ * above the darkened floor after the snap. They stream under you: ground rush you can read with
+ * the HUD hidden (DECISIONS #23). Same 64x64 layout and UVs as the floor texture.
+ */
+export function floorSeams(): THREE.CanvasTexture {
+  const t = canvasTexture(64, 64, (ctx) => {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillStyle = PALETTE[1];
+    for (const sy of [0, 32]) ctx.fillRect(0, sy, 64, 1);
+    ctx.fillRect(20, 1, 1, 31);
+    ctx.fillRect(52, 33, 1, 31);
+    ctx.fillStyle = PALETTE[2];
+    for (const sy of [0, 32]) for (let bx = 4; bx < 64; bx += 8) ctx.fillRect(bx, sy + 2, 1, 1);
+    for (const [sx, y0] of [[20, 1], [52, 33]]) for (let by = y0 + 5; by < y0 + 30; by += 8) ctx.fillRect(sx + 2, by, 1, 1);
+  });
+  t.flipY = false; // the glTF floor texture's orientation
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
 }
 
 /**

@@ -16,7 +16,7 @@ import type { PostFx, View } from '../render3d/view';
 import { wx, wz } from '../render3d/units';
 import { drawHud } from '../ui3d/hud';
 import { Hints } from '../ui3d/hints';
-import { Overlay, drawMarkers } from '../ui3d/overlay';
+import { Overlay, drawMarkers, drawMirrorFrame } from '../ui3d/overlay';
 import type { UI } from '../ui/ui';
 import { LIVE, TuningPanel } from './tuning';
 import { loadBest, loadSeenHints, saveBest, saveSeenHints, type Settings } from './settings';
@@ -63,6 +63,11 @@ export class Play {
   private lockLostAt = -1;
   /** the last tick's thrust input, for the plume */
   private thrust = 0;
+  /** the mirror's frame flashes gold this long: a Rammer behind you just opened its back (DECISIONS #23) */
+  private mirrorGold = 0;
+  private rstate = new Map<number, string>();
+  /** turn scrub: the squeal's cooldown */
+  private scrubbing = false;
 
   constructor(private host: PlayHost, seed = (Math.random() * 1e9) | 0) {
     this.world = createWorld({ seed, tuning: LIVE.t, flat: LIVE.flat });
@@ -77,7 +82,8 @@ export class Play {
 
   get keys() {
     const pad = this.host.input.usingPad;
-    return { rip: pad ? 'A' : keyLabel(this.host.input.binds.rip[0]).toUpperCase(), bolt: pad ? 'Y' : keyLabel(this.host.input.binds.bolt[0]).toUpperCase() };
+    const b = this.host.input.binds;
+    return { rip: pad ? 'A' : keyLabel(b.rip[0]).toUpperCase(), bolt: pad ? 'Y' : keyLabel(b.bolt[0]).toUpperCase(), look: pad ? 'LB' : keyLabel(b.look[0]).toUpperCase() };
   }
 
   /** One fixed tick. */
@@ -111,12 +117,28 @@ export class Play {
     if (advanced) {
       this.ripLatch = false;
       this.boltLatch = false;
-      this.host.stage.ticked(w);
+      this.host.stage.ticked(w, this.steer.scrub);
+      // a hard turn scrubbing speed squeals (once per turn), so the cost of the mouse flick is heard
+      if (this.steer.scrub && !this.scrubbing) this.host.audio.sfx('skid', 0.45, 1.3);
+      this.scrubbing = this.steer.scrub;
+      // a Rammer behind you that goes into its skid has its back to you: the tear is on
+      for (const r of w.rammers) {
+        if (r.state === 'skid' && this.rstate.get(r.id) === 'charge' && this.outOfView(r.id)) this.mirrorGold = 0.7;
+        this.rstate.set(r.id, r.state);
+      }
     } else this.steer.held();
     for (const e of w.events) this.handle(e);
     this.recent.push(...w.events);
     if (this.recent.length > 200) this.recent.splice(0, this.recent.length - 200);
     w.events.length = 0;
+  }
+
+  /** Whether a Rammer is outside the main view (behind or beside you). */
+  private outOfView(id: number): boolean {
+    const v = this.host.stage.rammerView(id)?.pos;
+    if (!v) return false;
+    const n = v.clone().project(this.host.stage.camera);
+    return !(n.z < 1 && Math.abs(n.x) < 0.97 && Math.abs(n.y) < 0.97);
   }
 
   private rammerPos(id: number): THREE.Vector3 | null {
@@ -256,6 +278,11 @@ export class Play {
       case 'enter': break;
       case 'cleared': a.sfx('cleared'); this.recordClear(); break;
       case 'scrapped': a.sfx('scrapped'); break;
+      default: {
+        // every sim event has a first-person answer (DECISIONS #15): a new event kind is a type error here
+        const unhandled: never = e;
+        void unhandled;
+      }
     }
   }
 
@@ -309,8 +336,11 @@ export class Play {
   /** Age the 2D effects, flashes and hints (per frame in play; per tick in the scripted scenes). */
   effects(dt: number) {
     const p = this.world.player;
-    this.overlay.update(dt, p.tier === 'slip' ? Math.min(1, (p.speed - this.world.t.slipAt) / 60 + 0.35) : 0);
-    this.hints.update(this.world, dt);
+    this.overlay.update(dt, p.tier === 'slip' ? Math.max(0, Math.min(1, (p.speed - this.world.t.slipAt) / 60 + 0.35)) : 0);
+    const behind = this.world.rammers.some((r) => r.state === 'windup' && this.outOfView(r.id));
+    if (this.host.input.isDown('look')) this.hints.looked();
+    this.hints.update(this.world, dt, behind);
+    this.mirrorGold = Math.max(0, this.mirrorGold - dt);
     this.hurt = Math.max(0, this.hurt - dt);
     this.edge.t = Math.max(0, this.edge.t - dt);
     this.white = Math.max(0, this.white - dt);
@@ -342,17 +372,22 @@ export class Play {
 
   drawUI(ui: UI, dt: number) {
     const w = this.world, stage = this.host.stage, s = this.host.settings;
-    const showHud = !this.hudHidden && !w.result;
+    const showHud = !this.hudHidden && !w.result && !this.paused;
     this.overlay.draw(ui, stage.camera, w, {
-      reticle: showHud && !this.paused ? wrapAngle(this.steer.demand - stage.view.heading) : null,
+      // against the sim's heading, not the interpolated one, so a key turn doesn't make it flicker
+      reticle: showHud && !this.autopilot ? wrapAngle(this.steer.demand - w.player.heading) : null,
+      scrub: this.steer.scrub,
       hfov: stage.rig.hfov,
       stun: w.player.stun > 0,
       time: this.time,
       rear: true,
     });
-    if (!w.result) drawMarkers(ui, stage.camera, w, (id) => stage.rammerView(id)?.pos ?? null, this.time, true);
-    if (!w.result && !this.paused) this.hints.draw(ui, w, stage.camera, this.keys, true);
-    if (showHud) drawHud(ui, w, { gauge: s.gauge, keys: this.keys });
+    if (!w.result && !this.paused) {
+      if (this.mirrorGold > 0 && Math.floor(this.mirrorGold * 10) % 2 === 0) drawMirrorFrame(ui, C.gold2);
+      drawMarkers(ui, stage.camera, stage.rig.rear, w, (id) => stage.rammerView(id)?.pos ?? null, this.time);
+      this.hints.draw(ui, w, stage.camera, this.keys, true);
+    }
+    if (showHud) drawHud(ui, w, { gauge: s.gauge, keys: this.keys, boltHint: this.hints.current === 'bolt' });
     if (DEBUG_KEYS) this.tuning.draw(ui, w.t, (on) => (w.flat = on), (on) => (w.player.part = on ? 'booster' : null), dt);
     if (w.flat) ui.text('FLAT MODE', 6, 80, C.white, { shadow: C.ink });
     if (!this.host.input.look.locked && !this.paused && !w.result && !this.tuning.open && !this.frozen && !this.autopilot)
@@ -363,7 +398,7 @@ export class Play {
 
   restart() {
     const fresh = new Play(this.host);
-    Object.assign(this, { world: fresh.world, prev: fresh.prev, steer: fresh.steer, hints: fresh.hints, overlay: fresh.overlay, paused: false, endT: 0, time: 0, recent: [], hurt: 0, white: 0 });
+    Object.assign(this, { world: fresh.world, prev: fresh.prev, steer: fresh.steer, hints: fresh.hints, overlay: fresh.overlay, paused: false, endT: 0, time: 0, recent: [], hurt: 0, white: 0, mirrorGold: 0, rstate: new Map(), scrubbing: false });
     this.host.lockPointer();
   }
 
@@ -379,6 +414,18 @@ export class Play {
     if (ui.button('p-restart', x + 15, y + 60, 110, 18, 'RESTART')) this.restart();
     if (ui.button('p-settings', x + 15, y + 84, 110, 18, 'SETTINGS')) this.host.openSettings();
     if (ui.button('p-title', x + 15, y + 108, 110, 18, 'TITLE')) this.host.toTitle();
+    // how first person works, in a few lines (nothing else teaches the reticle or the brake)
+    const k = this.keys;
+    const lines = [
+      'W THRUST    S BRAKE (IT NEVER REVERSES OR FLIPS YOU)',
+      'MOUSE OR A/D STEER: THE BODY TURNS AT ITS OWN RATE',
+      'THE RETICLE IS WHERE YOU ASKED TO GO; HARD TURNS COST SPEED',
+      `${k.rip} RIP    ${k.bolt} BOLT ON    ${k.look} LOOK BACK    H HIDE HUD`,
+      'THE MIRROR AT THE TOP IS BEHIND YOU',
+    ];
+    const ly = y + h + 8;
+    ui.panel(150, ly, 340, lines.length * 12 + 10, 'dark');
+    lines.forEach((t, i) => ui.text(t, 320, ly + 6 + i * 12, i === 4 ? C.frost : C.mist, { align: 'center' }));
   }
 
   private drawResults(ui: UI) {

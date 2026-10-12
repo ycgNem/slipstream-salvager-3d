@@ -137,3 +137,75 @@ the code.
   frame, the view lags behind it and catches up with a 0.07 s time constant, instead of teleporting
   up to 180°. Presentation only; the sim's heading is untouched and normal steering never triggers it.
   Why: an instant 180° view snap in first person reads as a glitch, and you lose where the wall was.
+
+## Milestone 2, first pass: the critic's and the visual QA's review (2026-10-12)
+
+Two read-only review agents went over the M1 build before the owner's playtest: `indie-critic`
+(played ~90 s with real keys, watched three bots, checked the turning against the real adapter and
+sim) and `qa-screens` (33 scenes, perf, coverage, a bot watch). Everything below is presentation or
+input; the sim is untouched (the drift test holds).
+
+- #23: **The review fixes.**
+  - **A crash at the moment of impact (critic #3).** The speed-line count went negative when the
+    tier still read Slipstream in the tick a hit cut the speed, which threw in `Overlay.update` and
+    dropped the frame through the hit-stop. Clamped to 0..26.
+  - **Steering (critic #1, #2, #8), `src/input3d/steer.ts`:**
+    - S only brakes while it can't become the 2D pivot (above pivotSpeed + 20). Below that, S is
+      just "no thrust" and A/D and the mouse still turn you (it used to send nothing: S + D at rest
+      turned 0°, then the view snapped 83° when S was released). The sim's brake can't shed the last
+      80 px/s without pivoting, so that last bit is a coast (a **Proposal** below).
+    - The whole mouse turn is kept (up to 175°) and worked off by the body at its own rate; the sim
+      only ever sees 75° of it at a time, so it never brakes. The same flick now turns the same amount
+      at rest and at top speed (it was 175° at rest and 87° with the Booster, the rest thrown away).
+    - A/D (and the stick) turn gently (4.2 rad/s, which never scrubs) for 0.25 s, then ramp up to
+      6.5 rad/s or the body's own rate if lower, which scrubs at Slipstream like a hard mouse turn
+      (the 2D rule: tight turns cost speed). Keyboard players used to never meet turn scrub, and a
+      key U-turn took 0.75 s, so the tear opening behind you was gone by the time you faced it.
+    - Turn scrub is shown and heard: the reticle blinks white, the robot leaves skid marks, and a
+      squeal plays once per hard turn. A demand past the edge of the view pins the reticle to the
+      edge with a chevron. The reticle is measured against the sim's heading, so it no longer
+      flickers on key turns.
+  - **Threats beside and behind you (critic #5, QA #7, #8):** the edge markers are long filled
+    arrows (the old one read as ▼ whichever way it pointed), compass-style (ahead = up). A threat
+    ahead of you but out of view gets one on the frame's side edge; one behind you that the mirror
+    doesn't show gets one beside the mirror, and that side of the mirror's frame lights up. Nothing
+    is drawn on the claw any more. Aiming is frost, not mist. A warned gate gets a marker too, and an
+    arrow dropping onto it when it's in view (at 20 m the gate is a few pixels); its chevrons flash
+    between two reds instead of blinking off, and its lane is 5 m, not 3. Sounds from behind you are
+    low-passed (down to 1.4 kHz dead behind), since HRTF alone is weakest at front vs back.
+  - **The tear behind you (critic #8):** the mirror's frame flashes gold when a Rammer that charged
+    past you goes into its skid out of view: its back is open.
+  - **Speed with the HUD hidden (critic #6):** the floor's plate seams and rivets glow one palette
+    step above the darkened floor (an emissive map in plum and slate, no extra draw call), so ground
+    rush survives the palette snap below Slipstream. Amends #19: the floor is still the darkest
+    thing, but no longer a flat two-color field.
+  - **Onboarding (critic #9):** the first time a Rammer winds up out of view, a hint under the mirror
+    says the mirror shows it and Q looks back. The tear hint says the back will be behind you ("LET IT
+    CHARGE PAST, SWING ROUND, HIT ITS GOLD BACK AT TEAL"). The slot doesn't repeat "E: BOLT ON" while
+    the bolt hint says it. The pause screen has a five-line card: W/S (S never reverses or flips you),
+    the body turns at its own rate, what the reticle is, the keys, the mirror is behind you.
+  - **The Burn lane (critic #4, QA #3)** starts a metre ahead of the eye: a quad corner at the eye
+    projects to w = 0 and drew the lane as one teal slash.
+  - **Colors stay on meaning (critic #7, QA #1, #2, #5, #14, #15):** the edge flashes (gold tear and
+    bolt, teal tier-up, red hurt) are the exact palette color dithered in by an ordered threshold,
+    and the snap leaves those pixels alone (they were blended, then snapped to olive and grey-green); Rammer eyes and the claw glow are set to exact
+    palette colors (they over-drove to salmon 61); speed lines use speedSky 48, not frost; the shadow
+    line under the mirror no longer runs across the whole frame.
+  - **Smaller QA fixes:** shattered or knocked-loose parts break behind you, not at eye height (#4);
+    hints sit above the claw's jaw tips (#6); the lane fill's dither is in screen pixels, since on the
+    5 cm grid it moiréd past 4 m and hid the chevrons (#9); the towed part is drawn twice as far back
+    as the sim's 14 px cable, with a two-strand cable, so towing and bolted look different in the
+    mirror (#10, presentation only); a stripped Rammer's back plate is a step lighter with a light
+    blue rim round the socket (#11, `art/rammer/build_rammer.py`); the mirror pitches down 0.12, not
+    0.24, so the Ring behind fills more of it (#12); the claw's hemisphere light is neutral, so its
+    steel reads as the player's greys, not the Rammer's sage (#13); the HUD hides while paused (#16);
+    the sky texture is 1024x256, so its texels are frame pixels (#17); the tuning panel starts under
+    the mirror (#18); the sky's cap is gone (the background is the same ink), one draw call a pass
+    (#19).
+- #24: **Proposals for the owner from the review (not in the code; the sim is the 2D game's):**
+  - **Rammer `skidTime` +0.3 s in the 3D game** (a logged divergence): in first person the tear
+    opening is behind you, and turning round takes most of the skid. Try the hard key turn and the
+    gold mirror flash first.
+  - **A low-speed brake:** the sim can't brake below pivotSpeed + 15 without pivoting, so S coasts
+    the last 80 px/s (about 1.2 s). A 3D-only rule "a brake input below pivotSpeed just decelerates"
+    would need a sim change.

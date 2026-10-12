@@ -7,7 +7,7 @@ import type { ArenaDef, Gate } from '../data/arena';
 import { C } from '../data/palette';
 import { type ModelSet, meshesOf } from './models';
 import { pal, wx, wz } from './units';
-import { skyTexture } from './textures';
+import { floorSeams, skyTexture } from './textures';
 
 interface InstancedPart {
   mesh: THREE.InstancedMesh;
@@ -68,7 +68,9 @@ export class Arena3D {
       map.repeat.set(wx(a.w) / tile, wz(a.h) / tile);
       map.needsUpdate = true;
       // the floor is the calmest, darkest thing in the Ring, so everything that moves pops (STYLE)
-      mat = new THREE.MeshLambertMaterial({ map, color: new THREE.Color(0.36, 0.34, 0.4) });
+      const seams = floorSeams();
+      seams.repeat.copy(map.repeat);
+      mat = new THREE.MeshLambertMaterial({ map, color: new THREE.Color(0.36, 0.34, 0.4), emissive: 0xffffff, emissiveMap: seams });
       // the yard outside the walls: the same ground, darker
       const out = srcMat.map.clone();
       out.wrapS = out.wrapT = THREE.RepeatWrapping;
@@ -221,9 +223,7 @@ export class Arena3D {
     (sky.material as THREE.MeshBasicMaterial).map!.repeat.set(3, 1);
     sky.name = 'sky';
     this.group.add(sky);
-    const cap = new THREE.Mesh(new THREE.CircleGeometry(120, 24).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: pal(C.ink) }));
-    cap.position.set(cx, 57, cz);
-    this.group.add(cap);
+    // no cap over the cylinder: the scene's background is the same ink, and it saves a draw call a pass
   }
 
   private buildLights() {

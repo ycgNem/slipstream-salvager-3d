@@ -88,31 +88,37 @@ void main() {
     }
   }
 
-  // the edge flash (hurt, tier-up): palette color over the outer frame
+  vec2 tl = vec2(px.x, uRes.y - 1.0 - px.y);    // top-left origin
+
+  // the edge flash (hurt, tier-up, tear): the exact palette color, dithered in by an ordered
+  // threshold, never blended (a blend snaps to some other color: teal became sage, gold olive), and
+  // kept out of the snap below, whose dither could still nudge it to a neighbour
+  bool exact = false;
   if (uFlash > 0.001) {
     vec2 d = abs(uv - 0.5) * 2.0;
     float edge = smoothstep(0.55, 1.0, max(d.x, d.y));
-    col = mix(col, uFlashCol, edge * uFlash);
+    if (bayer4(tl) < edge * uFlash) { col = uFlashCol; exact = true; }
   }
-  col = mix(col, vec3(1.0), uWhite);
+  if (uWhite > 0.001 && bayer4(tl + 1.0) < uWhite) { col = vec3(1.0); exact = true; }
 
   // the rear strip, mirrored like a real mirror, with a one-pixel frame
-  vec2 tl = vec2(px.x, uRes.y - 1.0 - px.y);    // top-left origin
   if (uRearOn > 0.5) {
     vec2 q = tl - uRear.xy;
     if (q.x >= -1.0 && q.y >= -1.0 && q.x <= uRear.z && q.y <= uRear.w) {
-      if (q.x < 0.0 || q.y < 0.0 || q.x >= uRear.z || q.y >= uRear.w) col = uFrame;
+      if (q.x < 0.0 || q.y < 0.0 || q.x >= uRear.z || q.y >= uRear.w) { col = uFrame; exact = true; }
       else {
         vec2 ruv = vec2(1.0 - (q.x + 0.5) / uRear.z, 1.0 - (q.y + 0.5) / uRear.w);
         col = toSrgb(texture2D(tRear, ruv).rgb);
+        exact = false;
       }
-    } else if (q.y > uRear.w && q.y <= uRear.w + 1.0) {
+    } else if (q.y > uRear.w && q.y <= uRear.w + 1.0 && q.x >= -1.0 && q.x <= uRear.z) {
       col = uInk; // the shadow line under the strip
+      exact = true;
     }
   }
 
   // snap to the palette, with a 4x4 ordered dither
-  if (uSnap > 0.5) {
+  if (uSnap > 0.5 && !exact) {
     vec3 c = clamp(col + (bayer4(tl) - 0.5) * uDither, 0.0, 1.0);
     col = texture(tLut, c * (31.0 / 32.0) + 0.5 / 32.0).rgb;
   }

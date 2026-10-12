@@ -12,7 +12,7 @@ import { textWidth } from '../ui/font';
 import { REAR } from '../render3d/view';
 import { project } from './overlay';
 
-export type HintId = 'speed' | 'tear' | 'bolt' | 'burn';
+export type HintId = 'speed' | 'tear' | 'bolt' | 'burn' | 'mirror';
 
 export class Hints {
   seen: Record<string, boolean>;
@@ -40,13 +40,21 @@ export class Hints {
     if (e.k === 'rip' && e.burn && e.tier === 'slip') this.done('burn');
   }
 
-  update(w: World, dt: number) {
+  /** You held the look-back: the mirror hint has done its job. */
+  looked() {
+    this.done('mirror');
+  }
+
+  /** `behind`: a Rammer is winding up where the view can't see it (the first time teaches the mirror). */
+  update(w: World, dt: number, behind = false) {
     if (!this.enabled) {
       this.current = null;
       return;
     }
+    if (this.current === 'mirror' && this.shownFor > 4) this.done('mirror');
     const want: HintId | null =
-      !this.seen.bolt && w.player.tow ? 'bolt'
+      !this.seen.mirror && (behind || this.current === 'mirror') ? 'mirror'
+      : !this.seen.bolt && w.player.tow ? 'bolt'
       : !this.seen.burn && w.player.part === 'booster' && !w.flat ? 'burn'
       : !this.seen.speed && w.wave.phase !== 'banner' ? 'speed'
       : !this.seen.tear && this.seen.speed && w.rammers.length > 0 ? 'tear'
@@ -58,15 +66,18 @@ export class Hints {
     this.shownFor += dt;
   }
 
-  draw(ui: UI, w: World, cam: THREE.Camera, keys: { rip: string; bolt: string }, rear: boolean) {
+  draw(ui: UI, w: World, cam: THREE.Camera, keys: { rip: string; bolt: string; look: string }, rear: boolean) {
     if (!this.current) return;
     const text = this.current === 'speed' ? 'BUILD SPEED - THE CLAW TURNS TEAL'
-      : this.current === 'tear' ? `DODGE ITS CHARGE, THEN HIT ITS BACK AT TEAL (${keys.rip})`
+      : this.current === 'tear' ? `LET IT CHARGE PAST, SWING ROUND, HIT ITS GOLD BACK AT TEAL (${keys.rip})`
       : this.current === 'burn' ? `HOLD ${keys.rip} TO REV A BURN, LET GO TO LAUNCH`
+      : this.current === 'mirror' ? `IT'S BEHIND YOU: THE MIRROR SHOWS IT, HOLD ${keys.look} TO LOOK BACK`
       : `TAP ${keys.bolt} TO BOLT IT ON`;
     const tw = textWidth(text);
-    let x = 320, y = 262;
-    if (this.current === 'bolt') {
+    // just above the claw, clear of the reticle
+    let x = 320, y = 228;
+    if (this.current === 'mirror') y = (rear ? REAR.y + REAR.h + 8 : 8) + 4;
+    else if (this.current === 'bolt') {
       x = 636 - tw / 2;
       y = 328;
     } else if (this.current === 'tear') {
@@ -83,6 +94,7 @@ export class Hints {
     x = Math.max(4 + tw / 2, Math.min(636 - tw / 2, x));
     ui.fill(Math.round(x - tw / 2 - 4), y - 3, tw + 8, 14, C.ink);
     const blink = this.shownFor < 0.6 && Math.floor(this.shownFor * 10) % 2 === 1;
-    ui.text(text, Math.round(x), y, blink ? C.white : this.current === 'speed' || this.current === 'burn' ? C.speed4 : C.gold3, { align: 'center' });
+    const col = this.current === 'speed' || this.current === 'burn' ? C.speed4 : this.current === 'mirror' ? C.frost : C.gold3;
+    ui.text(text, Math.round(x), y, blink ? C.white : col, { align: 'center' });
   }
 }

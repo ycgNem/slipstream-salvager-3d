@@ -84,7 +84,7 @@ export class CameraRig {
     const back = yaw + Math.PI;
     const d = Math.min(1.0, c.reach) * (this.look > 0.5 ? -1 : 1);
     this.rear.position.set(wx(c.x) + fx * d, 0.95, wz(c.y) + fz * d);
-    this.rear.rotation.set(-0.24, back, 0);
+    this.rear.rotation.set(-0.12, back, 0);
   }
 
   /** The title screen: a slow orbit above the Ring, looking at its centre. */

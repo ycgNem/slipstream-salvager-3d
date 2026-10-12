@@ -28,7 +28,7 @@ export class TuningPanel {
   draw(ui: UI, worldT: Tuning, setFlat: (on: boolean) => void, setBooster: (on: boolean) => void, dt: number) {
     if (!this.open) return;
     this.noteT = Math.max(0, this.noteT - dt);
-    const x = 446, y = 78, w = 190, h = 252;
+    const x = 446, y = 98, w = 190, h = 240;
     ui.panel(x, y, w, h, 'dark');
     ui.text('TUNING', x + 6, y + 5, C.white);
     ui.text('` TO CLOSE', x + w - 6, y + 5, C.lilac, { align: 'right' });

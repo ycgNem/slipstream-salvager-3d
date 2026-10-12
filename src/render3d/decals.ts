@@ -39,7 +39,9 @@ void main() {
     bool flash = uLocked > 0.5 && mod(floor(uTime * 12.0), 2.0) < 1.0;
     if (edge || cap) { on = uLocked > 0.5 || dash > 0.5; col = flash ? uHot : uEdge; }
     else {
-      bool dith = uLocked > 0.5 ? mod(t.x + t.y, 2.0) < 1.0 : (mod(t.x, 2.0) < 1.0 && mod(t.y, 2.0) < 1.0);
+      // the fill's dither is in screen pixels: on the 5 cm grid it moirés into bands past 4 m
+      vec2 f = floor(gl_FragCoord.xy);
+      bool dith = uLocked > 0.5 ? mod(f.x + f.y, 2.0) < 1.0 : (mod(f.x, 2.0) < 1.0 && mod(f.y, 2.0) < 1.0);
       // chevrons every 16 px pointing along the charge
       float cx = mod(t.x - ay, 16.0);
       bool chev = uLocked > 0.5 && cx < 2.0;
@@ -53,15 +55,17 @@ void main() {
     else if (cap) { on = true; col = uEdge; }
     else {
       float cx = mod(t.x - ay - floor(uTime * 60.0), 18.0);
-      on = cx < 2.0 || (mod(t.x + t.y, 4.0) < 1.0 && mod(t.y, 2.0) < 1.0);
+      vec2 f = floor(gl_FragCoord.xy);
+      on = cx < 2.0 || (mod(f.x + f.y, 4.0) < 1.0 && mod(f.y, 2.0) < 1.0);
       col = cx < 2.0 ? uHot : uFill;
     }
   } else {
-    // a gate warning: blinking chevrons pointing into the Ring
+    // a gate warning: chevrons pointing into the Ring, flashing between two reds (never off, so a
+    // glance always catches them)
     bool blink = mod(floor(uTime * 8.0), 2.0) < 1.0;
     float cx = mod(t.x - ay + floor(uTime * 20.0), 10.0);
-    on = cx < 4.0 && blink;
-    col = cx < 2.0 ? uHot : uEdge;
+    on = cx < 4.0;
+    col = blink ? (cx < 2.0 ? uHot : uEdge) : uFill;
   }
   if (!on) discard;
   gl_FragColor = vec4(col, 1.0);

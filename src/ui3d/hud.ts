@@ -53,6 +53,8 @@ export function boosterIcon(ui: UI, x: number, y: number, cracked = false) {
 export interface HudOpts {
   gauge: boolean;
   keys: { bolt: string };
+  /** the bolt hint is up: it says the key, so the slot just says TOWING */
+  boltHint?: boolean;
 }
 
 export function drawHud(ui: UI, w: World, o: HudOpts) {
@@ -69,7 +71,7 @@ export function drawHud(ui: UI, w: World, o: HudOpts) {
   // the part slot, bottom right
   const name = p.part ? PARTS[p.part].name.toUpperCase() + (p.partCracked ? ' (CRACKED)' : '') : 'NO PART';
   const bolting = p.bolt !== null;
-  const tow = p.tow ? (bolting ? 'BOLTING...' : `TOWING  ${o.keys.bolt}: BOLT ON`) : '';
+  const tow = p.tow ? (bolting ? 'BOLTING...' : o.boltHint ? 'TOWING' : `TOWING  ${o.keys.bolt}: BOLT ON`) : '';
   const nameW = textWidth(name);
   const sx = 620;
   const rowW = 22 + nameW + (tow ? textWidth(tow) + 12 : 0);

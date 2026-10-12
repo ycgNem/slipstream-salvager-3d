@@ -50,6 +50,8 @@ export interface StageOpts {
 }
 
 const _v = new THREE.Vector3();
+/** how much longer the cable is drawn than the sim's (DECISIONS #23) */
+const TOW_DRAW = 2;
 const _w = new THREE.Vector3();
 
 export class Stage {
@@ -93,7 +95,7 @@ export class Stage {
     this.scene.add(this.player.root);
     this.claw = new ClawRig(models);
     this.vm.add(this.claw.anchor);
-    const hemi = new THREE.HemisphereLight(pal(C.frost), pal(C.plum), 1.9);
+    const hemi = new THREE.HemisphereLight(0xffffff, pal(C.plum), 1.7);
     const sun = new THREE.DirectionalLight(pal(C.peach), 2.6);
     sun.position.set(-6, 14, -9);
     this.vm.add(hemi, sun);
@@ -129,7 +131,7 @@ export class Stage {
   }
 
   /** Per sim tick: dust, skid marks, steam, smoke, crackle, the plume (the 2D ticked()). */
-  ticked(w: World) {
+  ticked(w: World, scrub = false) {
     this.ticks++;
     const p = w.player, pt = this.particles, n = this.ticks;
     const fx = Math.cos(p.heading), fz = Math.sin(p.heading);
@@ -140,6 +142,11 @@ export class Stage {
     for (let i = 0; i < grit; i++) {
       const a = p.heading + (Math.random() - 0.5) * 1.6, d = 3 + Math.random() * 6;
       pt.emit(p.tier === 'slip' ? 'teal' : 'mote', x + Math.cos(a) * d, 0.08 + Math.random() * 0.9, z + Math.sin(a) * d, 1, 0, 0, 0, 0.05);
+    }
+    if (scrub && n % 2 === 0) {
+      // a turn hard enough to scrub speed leaves marks, like the brake
+      this.skids.add(p.x - Math.sin(p.heading) * 5, p.y + Math.cos(p.heading) * 5, p.heading);
+      this.skids.add(p.x + Math.sin(p.heading) * 5, p.y - Math.cos(p.heading) * 5, p.heading);
     }
     if (p.brake && p.speed > 30) {
       this.skids.add(p.x - Math.sin(p.heading) * 5, p.y + Math.cos(p.heading) * 5, p.heading);
@@ -226,10 +233,18 @@ export class Stage {
         if (e.lost) this.debris.burst(new THREE.Vector3(x, 0, z), 4, [C.gold, C.gold2, C.gold0]);
         break;
       }
-      case 'shatter': case 'knock': case 'crush': {
+      case 'shatter': case 'knock': {
+        // your own part: it breaks behind you (the mirror sees it), never at eye height
+        this.player.rearWorld(_v);
+        _v.addScaledVector(new THREE.Vector3(-fx, 0, -fz), 0.3);
+        pt.emit('shard', _v.x, _v.y, _v.z, e.k === 'knock' ? 12 : 22, -fx, 2, -fz, 3);
+        if (e.k === 'shatter') this.debris.burst(new THREE.Vector3(_v.x - fx * 0.5, 0, _v.z - fz * 0.5), 5, [C.gold, C.gold2, C.gold0]);
+        break;
+      }
+      case 'crush': {
         const [x, y, z] = at(e.x, e.y, 0.4);
-        pt.emit('shard', x, y, z, e.k === 'knock' ? 12 : 22, 0, 2, 0, 3);
-        if (e.k !== 'knock') this.debris.burst(new THREE.Vector3(x, 0, z), 5, [C.gold, C.gold2, C.gold0]);
+        pt.emit('shard', x, y, z, 22, 0, 2, 0, 3);
+        this.debris.burst(new THREE.Vector3(x, 0, z), 5, [C.gold, C.gold2, C.gold0]);
         break;
       }
       case 'hurt': {
@@ -306,8 +321,10 @@ export class Stage {
 
     // the Burn lane
     if (revving(w)) {
-      const len = laneLength(w.arena, px, py, ph, 420, t.playerRadius);
-      this.burnLane.set(px, py, ph, len, t.playerRadius * 2, false, time);
+      // drawn from a metre ahead: a quad corner right under the eye projects to w = 0 and tears
+      const len = laneLength(w.arena, px, py, ph, 420, t.playerRadius), skip = 20;
+      if (len > skip) this.burnLane.set(px + Math.cos(ph) * skip, py + Math.sin(ph) * skip, ph, len - skip, t.playerRadius * 2, false, time);
+      else this.burnLane.hide();
     } else this.burnLane.hide();
 
     // Rammers
@@ -357,7 +374,10 @@ export class Stage {
         this.scene.add(this.tow.root);
       }
       const q = prev.tow;
-      const tx = q ? lerp(q.x, p.tow.x, alpha) : p.tow.x, ty = q ? lerp(q.y, p.tow.y, alpha) : p.tow.y;
+      // drawn about twice as far back as the sim's 14 px cable, so in the mirror a towed part trails
+      // clearly behind you and never looks bolted on (presentation only; DECISIONS #23)
+      const sx = q ? lerp(q.x, p.tow.x, alpha) : p.tow.x, sy = q ? lerp(q.y, p.tow.y, alpha) : p.tow.y;
+      const tx = px + (sx - px) * TOW_DRAW, ty = py + (sy - py) * TOW_DRAW;
       // it trails nose-first toward you, swinging on the cable
       const yaw = -Math.atan2(py - ty, px - tx);
       this.tow.sync(tx, ty, yaw, 0.2 + Math.sin(time * 9) * 0.02, p.tow.cracked, time);
@@ -374,7 +394,7 @@ export class Stage {
     // gates
     for (const g of w.arena.gates) {
       const lane = this.gateLanes.get(g.id)!;
-      if (this.arena.warn[g.id] > 0) lane.set(g.spawn.x - g.dir.x * 14, g.spawn.y - g.dir.y * 14, Math.atan2(g.dir.y, g.dir.x), 60, 32, false, time);
+      if (this.arena.warn[g.id] > 0) lane.set(g.spawn.x - g.dir.x * 14, g.spawn.y - g.dir.y * 14, Math.atan2(g.dir.y, g.dir.x), 100, 32, false, time);
       else lane.hide();
       if (this.arena.open[g.id] > 0) this.arena.open[g.id] = Math.max(0, this.arena.open[g.id] - dt / (t.enterTime + 0.8));
     }

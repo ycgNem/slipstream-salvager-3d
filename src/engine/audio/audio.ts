@@ -32,7 +32,9 @@ export class Audio {
   private pm = 1;
   /** where tone() and noise() send their output: the SFX bus, or a source's panner */
   private out!: AudioNode;
-  private sources = new Map<string, { panner: PannerNode; last: number }>();
+  private sources = new Map<string, { panner: PannerNode; muffle: BiquadFilterNode; last: number }>();
+  /** where the listener is and faces, for muffling sounds from behind */
+  private lis = { x: 0, y: 0, z: 0, fx: 0, fz: -1 };
   vol: Vol;
   musicOn = true;
   /** quieter while paused */
@@ -194,6 +196,8 @@ export class Audio {
     const ctx = this.ctx;
     if (!ctx) return;
     const L = ctx.listener, t = ctx.currentTime;
+    const fl = Math.hypot(fwd.x, fwd.z) || 1;
+    this.lis = { x: pos.x, y: pos.y, z: pos.z, fx: fwd.x / fl, fz: fwd.z / fl };
     if (L.positionX) {
       L.positionX.setValueAtTime(pos.x, t);
       L.positionY.setValueAtTime(pos.y, t);
@@ -221,8 +225,13 @@ export class Audio {
       panner.refDistance = 1.5;
       panner.maxDistance = MAX_DIST;
       panner.rolloffFactor = 0.85;
-      panner.connect(this.sfxBus);
-      s = { panner, last: ctx.currentTime };
+      // HRTF alone is weakest at front vs back: a sound from behind you is also muffled
+      const muffle = ctx.createBiquadFilter();
+      muffle.type = 'lowpass';
+      muffle.frequency.value = 20000;
+      panner.connect(muffle);
+      muffle.connect(this.sfxBus);
+      s = { panner, muffle, last: ctx.currentTime };
       this.sources.set(key, s);
     }
     s.last = ctx.currentTime;
@@ -235,7 +244,11 @@ export class Audio {
     if (!ctx) return;
     const s = this.sources.get(key);
     if (!s) return;
-    const t = ctx.currentTime, pn = s.panner;
+    const t = ctx.currentTime, pn = s.panner, L = this.lis;
+    const dx = p.x - L.x, dz = p.z - L.z, d = Math.hypot(dx, dz);
+    // cos of the angle off your nose: full brightness ahead and beside, darker the further behind
+    const c = d > 0.01 ? (dx * L.fx + dz * L.fz) / d : 1;
+    s.muffle.frequency.setTargetAtTime(c >= -0.2 ? 20000 : 20000 * Math.pow(1400 / 20000, Math.min(1, (-0.2 - c) / 0.6)), t, 0.03);
     if (pn.positionX) {
       pn.positionX.setTargetAtTime(p.x, t, 0.02);
       pn.positionY.setTargetAtTime(p.y, t, 0.02);
@@ -263,6 +276,7 @@ export class Audio {
     for (const [k, s] of this.sources)
       if (ctx.currentTime - s.last > 4) {
         s.panner.disconnect();
+        s.muffle.disconnect();
         this.sources.delete(k);
       }
   }

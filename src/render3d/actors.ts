@@ -20,6 +20,24 @@ export function mountOf(model: THREE.Object3D, name: string): THREE.Vector3 {
   return model.worldToLocal(m.getWorldPosition(new THREE.Vector3()));
 }
 
+/**
+ * Make a glowing part exactly one palette color: no lighting, no texture, emissive at 1. Glows
+ * change by switching palette colors, never by intensity (an over-driven emissive snaps to some
+ * other palette entry: lime became pale yellow, red became salmon).
+ */
+export function setGlow(mats: THREE.MeshLambertMaterial[], c: number) {
+  for (const m of mats) {
+    if (m.map) {
+      m.map = null;
+      m.emissiveMap = null;
+      m.needsUpdate = true;
+    }
+    m.color.setRGB(0, 0, 0);
+    m.emissive.copy(pal(c));
+    m.emissiveIntensity = 1;
+  }
+}
+
 function setEmissive(mats: THREE.MeshLambertMaterial[], c: THREE.Color, k: number) {
   for (const m of mats) {
     m.emissive.copy(c);
@@ -40,7 +58,6 @@ export class RammerView {
   private eyeMats: THREE.MeshLambertMaterial[];
   private shellMats: THREE.MeshLambertMaterial[];
   private nozzleMats: THREE.MeshLambertMaterial[];
-  private eyeColor: THREE.Color;
   flash = 0;
   /** world position (for sound and markers) */
   pos = new THREE.Vector3();
@@ -60,7 +77,6 @@ export class RammerView {
     this.eyeMats = materialsOf(this.model.getObjectByName('eyes'));
     this.shellMats = materialsOf(this.booster.getObjectByName('shell'));
     this.nozzleMats = materialsOf(this.booster.getObjectByName('nozzle_glow'));
-    this.eyeColor = this.eyeMats[0]?.emissive.clone() ?? pal(C.danger3);
     for (const m of [...this.bodyMats, ...this.shellMats]) m.emissive = new THREE.Color(0);
   }
 
@@ -76,7 +92,7 @@ export class RammerView {
     tl.rotation.set(0, 0, 0);
     tl.scale.set(1, 1, 1);
     const stripped = !r.booster;
-    let eyeK = 1, nozzle = 0, glint = 0;
+    let eye: number = C.danger3, nozzle = 0, glint = 0;
     switch (r.state) {
       case 'enter':
       case 'stalk': {
@@ -94,7 +110,7 @@ export class RammerView {
         const j = r.locked ? 0.014 : 0.007;
         tl.position.x = (Math.sin(time * 71 + this.id) * 0.5) * j;
         tl.position.z = (Math.sin(time * 53 + this.id * 3) * 0.5) * j;
-        eyeK = r.locked ? (Math.floor(time * 12) % 2 ? 3 : 1.4) : 1.4;
+        eye = r.locked && Math.floor(time * 12) % 2 ? C.dangerPink : C.danger3;
         nozzle = r.locked ? 1.5 : 0.6 * k;
         glint = r.locked ? 1 : 0;
         break;
@@ -102,7 +118,7 @@ export class RammerView {
       case 'charge':
         tl.rotation.z = -0.13;
         tl.position.y = 0.01;
-        eyeK = 2;
+        eye = C.dangerPink;
         nozzle = r.shove ? 0.5 : 2;
         glint = 1;
         break;
@@ -112,16 +128,16 @@ export class RammerView {
         if (r.slammed) {
           // stunned: it wobbles, eyes flicker
           tl.rotation.x = Math.sin(time * 14) * 0.08 * (0.4 + k);
-          eyeK = Math.floor(time * 10) % 3 === 0 ? 0.2 : 0.7;
-        } else eyeK = 0.6;
+          eye = Math.floor(time * 10) % 3 === 0 ? C.danger0 : C.danger1;
+        } else eye = C.danger1;
         glint = 1;
         break;
       }
     }
-    if (r.hp <= 1 && Math.floor(time * 7 + this.id) % 4 === 0) eyeK *= 0.3;
+    if (r.hp <= 1 && Math.floor(time * 7 + this.id) % 4 === 0) eye = C.danger0;
     // the booster: present until torn off; it glints gold while the back is open (DECISIONS 2D #60)
     this.booster.visible = r.booster;
-    setEmissive(this.eyeMats, this.eyeColor, eyeK);
+    setGlow(this.eyeMats, eye);
     setEmissive(this.nozzleMats, pal(C.orange), 0.4 + nozzle);
     const g = glint ? 0.35 + 0.35 * (Math.floor(time * 10) % 2) : 0;
     setEmissive(this.shellMats, pal(C.gold), g);
@@ -185,24 +201,31 @@ export class PartView {
 
 /** The cable from the robot's back to the towed part: a 1-px line (at 640x360) that sags. */
 export class Cable {
-  line: THREE.Line;
-  private pts = new Float32Array(10 * 3);
+  line: THREE.LineSegments;
+  private pts = new Float32Array(9 * 2 * 2 * 3);
   constructor() {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(this.pts, 3));
-    this.line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: pal(C.gold2) }));
+    // two strands a couple of centimetres apart, so it reads two pixels thick in the mirror
+    this.line = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: pal(C.gold2) }));
     this.line.frustumCulled = false;
     this.line.name = 'cable';
   }
   set(a: THREE.Vector3, b: THREE.Vector3) {
     const n = 10, len = a.distanceTo(b);
-    const sag = Math.max(0, 0.6 - len) * 0.35 + 0.04;
-    for (let i = 0; i < n; i++) {
-      const t = i / (n - 1);
-      this.pts[i * 3] = lerp(a.x, b.x, t);
-      this.pts[i * 3 + 1] = lerp(a.y, b.y, t) - Math.sin(t * Math.PI) * sag;
-      this.pts[i * 3 + 2] = lerp(a.z, b.z, t);
-    }
+    const sag = Math.max(0, 1.2 - len) * 0.2 + 0.05;
+    const at = (t: number, dy: number, out: number) => {
+      this.pts[out] = lerp(a.x, b.x, t);
+      this.pts[out + 1] = lerp(a.y, b.y, t) - Math.sin(t * Math.PI) * sag + dy;
+      this.pts[out + 2] = lerp(a.z, b.z, t);
+    };
+    let o = 0;
+    for (const dy of [0, -0.025])
+      for (let i = 0; i < n - 1; i++) {
+        at(i / (n - 1), dy, o);
+        at((i + 1) / (n - 1), dy, o + 3);
+        o += 6;
+      }
     (this.line.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     this.line.visible = true;
   }
@@ -440,12 +463,9 @@ export class ClawRig {
     if (this.jawR) this.jawR.rotation.y = this.jr0 - this.open * 0.5;
     // the tier glow (THREEJS-NOTES rule 8: second only to the FOV)
     const c = pal(TIER_GLOW[pose.tier]);
-    const pulse = pose.tier === 'slip' ? 1.2 + 0.4 * Math.sin(time * 18) : pose.tier === 'cruise' ? 1.0 : 0.6;
-    for (const m of this.glowMats) {
-      m.emissive.copy(c);
-      m.emissiveIntensity = pose.revving ? 1.8 + Math.sin(time * 40) * 0.5 : pulse;
-      m.color.copy(c);
-    }
+    // at Slipstream it flickers between the two brightest teals; revving, it strobes to white
+    const glow = pose.revving ? (Math.floor(time * 30) % 2 ? C.white : C.speed4) : pose.tier === 'slip' && Math.floor(time * 12) % 3 === 0 ? C.speed4 : TIER_GLOW[pose.tier];
+    setGlow(this.glowMats, glow);
     // the ring round the jaws, brighter and wider with speed
     const pts = (this.halo.geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
     const n = pts.length / 3;

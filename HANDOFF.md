@@ -24,8 +24,8 @@ Read this first, every session.
 
    | | Keyboard + mouse | Gamepad |
    |---|---|---|
-   | Steer | mouse (sets where you want the nose; the body turns at its own rate), or A/D | left stick |
-   | Thrust / brake | W / S | RT (or stick up) / LT |
+   | Steer | mouse (sets where you want the nose; the body turns at its own rate), or A/D (tap = gentle, hold = hard turn that costs speed) | left stick |
+   | Thrust / brake | W / S (S never reverses or flips you; below a crawl it just lets you coast and turn) | RT (or stick up) / LT |
    | Rip (hold with the Booster to rev a Burn) | left click or Space | A or RB |
    | Bolt on (tap while towing) | E or right click | Y or X |
    | Look back (hold) | Q | LB |
@@ -38,14 +38,27 @@ Read this first, every session.
    swings behind you on a cable (watch the **mirror** at the top); tap E to bolt it on; now holding
    Rip revs a Burn down your own teal lane. Your bolted part is your armor.
 4. **Reading threats in first person:** the mirror at the top shows what's behind you (and your own
-   back, with the booster on it); a Rammer winding up out of view gets an **arrow on the screen
-   edge** (grey aiming, flashing red locked, red charging; behind you = the bottom edge); its lane is
-   painted on the floor; its windup is heard from where it is (headphones help).
+   back, with the booster on it); a Rammer winding up where neither the view nor the mirror shows it
+   gets an **arrow** (light grey aiming, flashing red locked, red charging): on the screen's side edge
+   if it's ahead of you, beside the mirror (and that side of the mirror's frame lights up) if it's
+   behind. Its lane is painted on the floor; its windup is heard from where it is, muffled when it's
+   behind you (headphones help). When a Rammer that charged past you goes into its skid, the
+   mirror's frame flashes **gold**: its back is open, swing round. The pause screen has a short
+   controls card.
 5. **The playtest questions** are in ROADMAP.md (Milestone 2). The new first-person one: play once
    with the **HUD hidden (H)** — could you tell your speed?
 6. **Flat mode** (the removal test) and **START WITH THE BOOSTER** are in the tuning panel, as in 2D.
 7. Settings has mouse sensitivity, invert, the speed gauge, and the **pixel palette filter** (on by
    default; off shows the raw 3D render).
+
+## Open points (for the owner)
+
+- **The review's rule proposals** (DECISIONS #24): a longer Rammer skid in 3D (the tear opening is
+  behind you in first person), and a low-speed brake (S coasts the last 80 px/s, because the sim's
+  brake pivots below that). Neither is in; both need a sim change, which is the 2D game's.
+- **Re-vendoring the 2D M3 rules** (DECISIONS #21) is the natural start of a 3D M3.
+- **Not verified by a human yet:** how the mouse feels (sensitivity default, the 175° kept turn), and
+  whether the muffled-from-behind sound helps. These are the playtest's job.
 
 ## How to run everything (for sessions)
 
@@ -57,7 +70,7 @@ Put the portable Node first in every shell:
 |---|---|---|
 | Play (dev) | `npm run dev` | port 5183; `.claude/launch.json` has `game3d` on 5191 |
 | Typecheck | `npm run typecheck` | |
-| Unit tests | `npm test` | the vendored 2D suite (61, unchanged), the drift test, the steer-adapter tests |
+| Unit tests | `npm test` | 71: the vendored 2D suite (61, unchanged), the drift test (2), the steer-adapter tests (8) |
 | Drift check | `npm run vendor -- --check` | what the 2D project changed since the snapshot; `--accept '#N'` keeps ours against a decision |
 | Strategy bots | `npx vite-node scripts/bots.ts` | the 2D bots on the vendored sim |
 | Smoke test | `npm run e2e` | real key presses, pointer lock asked, pause, zero console errors |

@@ -194,8 +194,8 @@ export function scene(app: App, name: SceneName) {
       break;
     }
     case 'gate-warn':
-      // wave 1's banner, then the warning at the gate farthest from you: ahead
-      place(play, 320, 300, -Math.PI / 2, 0);
+      // wave 1's banner, then the warning at the gate farthest from you (the west one): ahead
+      place(play, 560, 180, Math.PI, 0);
       run(play, app, 100);
       break;
     case 'wreck': {
