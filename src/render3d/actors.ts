@@ -343,6 +343,8 @@ export interface ClawPose {
   /** hidden while looking back */
   hidden: boolean;
   stunned: boolean;
+  /** towing: how far the part has swung off straight-behind (rad, + = to your right), else null */
+  towSwing: number | null;
 }
 
 export class ClawRig {
@@ -362,6 +364,10 @@ export class ClawRig {
   private twist = 0;
   private open = 0.4;
   private kick = 0;
+  /** the tow cable whipping into the lower frame when the part swings wide on a turn */
+  private tether: THREE.Line;
+  private tetherPts = new Float32Array(8 * 3);
+  private swingSide = 0;
 
   constructor(models: ModelSet) {
     this.model = instance(models.get('claw'));
@@ -388,6 +394,12 @@ export class ClawRig {
     this.halo = new THREE.Points(g, this.haloMat);
     this.halo.frustumCulled = false;
     this.model.add(this.halo);
+    const tg = new THREE.BufferGeometry();
+    tg.setAttribute('position', new THREE.BufferAttribute(this.tetherPts, 3));
+    this.tether = new THREE.Line(tg, new THREE.LineBasicMaterial({ color: pal(C.gold2) }));
+    this.tether.frustumCulled = false;
+    this.tether.visible = false;
+    this.anchor.add(this.tether);
     this.anchor.name = 'claw-anchor';
   }
 
@@ -447,5 +459,25 @@ export class ClawRig {
     (this.halo.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     this.haloMat.color.copy(c);
     this.halo.visible = pose.tier !== 'crawl' || pose.revving;
+    // the tether: the cable from your back runs past you; when the towed part swings wide on a turn
+    // it whips into the bottom corner of the view on that side (THREEJS-NOTES / M1 step 3)
+    const swingWant = pose.towSwing === null ? 0 : Math.max(-1, Math.min(1, pose.towSwing / 0.45));
+    this.swingSide = lerp(this.swingSide, swingWant, 1 - Math.exp(-dt / 0.06));
+    const k = Math.max(0, Math.abs(this.swingSide) - 0.25) / 0.75;
+    this.tether.visible = pose.towSwing !== null && k > 0.01 && !pose.hidden;
+    if (this.tether.visible) {
+      const side = Math.sign(this.swingSide);
+      const n = this.tetherPts.length / 3;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);
+        // from behind the camera, low, out to the corner and into the frame as the swing grows
+        const x = side * (0.55 - t * 0.2 * k), y = -0.5 + t * (0.2 + 0.08 * k) - Math.sin(t * Math.PI) * 0.05;
+        const z = 0.35 - t * (0.6 + 0.3 * k) + Math.sin(time * 23 + t * 6) * 0.004;
+        this.tetherPts[i * 3] = x;
+        this.tetherPts[i * 3 + 1] = y;
+        this.tetherPts[i * 3 + 2] = z;
+      }
+      (this.tether.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+    }
   }
 }

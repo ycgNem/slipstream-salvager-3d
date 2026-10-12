@@ -13,7 +13,7 @@ export const SCENES = [
   'rest', 'slip-pass', 'charged-behind', 'wall-clank', 'cleared',
   // every state Milestone 1 adds
   'title', 'settings', 'play', 'crawl', 'cruise', 'slip', 'telegraph-track', 'telegraph-lock', 'hitstop',
-  'tear', 'towing', 'bolting', 'booster', 'burn', 'burn-stun', 'skid', 'stripped', 'gate-warn', 'wreck', 'joust',
+  'tear', 'towing', 'tow-swing', 'bolting', 'booster', 'burn', 'burn-stun', 'skid', 'stripped', 'gate-warn', 'wreck', 'joust',
   'hurt', 'scrapped', 'pause', 'tuning', 'flat', 'hud-hidden', 'look-back',
 ] as const;
 export type SceneName = (typeof SCENES)[number];
@@ -146,6 +146,15 @@ export function scene(app: App, name: SceneName) {
       r.cd = 99;
       run(play, app, 24, F(1, -0.15));
       if (name === 'bolting') run(play, app, 18, F(1, -0.1, false, true));
+      break;
+    }
+    case 'tow-swing': {
+      // towing through a hard left turn: the part swings wide and its cable whips into view
+      quiet(play);
+      place(play, 80, 310, 0, 200);
+      w.player.tow = { part: 'booster', x: 66, y: 310, vx: 0, vy: 0, cracked: false };
+      run(play, app, 20, EAST);
+      run(play, app, 14, (w) => F(Math.cos(w.player.heading - 1.2), Math.sin(w.player.heading - 1.2)));
       break;
     }
     case 'booster':

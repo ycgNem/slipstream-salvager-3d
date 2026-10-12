@@ -1,5 +1,6 @@
 // Renders the placeholder app icon (a scrap robot's claw cutting through teal speed lines, with a
-// gold bolt) at several sizes into public/ and build/. Code-drawn like the rest of the slice's art;
+// gold bolt, and a "3D" badge so it never passes for the 2D game's icon) at several sizes into
+// public/ and build/. Code-drawn like the rest of the slice's art;
 // replaced in the art overhaul. Usage: node scripts/make-icons.mjs (needs Playwright + Chrome)
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -37,6 +38,11 @@ for (const [size, file, maskable] of sizes) {
     px(29, 16, P.teal3); px(29, 17, P.teal3); px(30, 16, P.teal2);
     // gold bolt (salvage)
     rect(14, 15, 4, 4, P.ink); rect(15, 16, 2, 2, P.gold);
+    // the "3D" badge, top right: a 3 and a D in pale gold on ink
+    rect(19, 2, 12, 8, P.ink);
+    const glyph = (gx, rows) => rows.forEach((r, y) => [...r].forEach((ch, x) => ch === '#' && px(gx + x, 3 + y, P.gold)));
+    glyph(20, ['###', '  #', ' ##', '  #', '###', '   ']);
+    glyph(25, ['## ', '# #', '# #', '# #', '## ', '   ']);
     return c.toDataURL('image/png');
   }, [size, !!maskable]);
   fs.writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));

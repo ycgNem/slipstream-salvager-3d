@@ -8,6 +8,7 @@ import { C } from '../data/palette';
 import { laneLength } from '../sim/arena';
 import { laneOf } from '../sim/rammer';
 import { revving } from '../sim/rip';
+import { wrapAngle } from '../data/dirs';
 import type { SimEvent } from '../sim/events';
 import type { World } from '../sim/world';
 import { Arena3D } from './arena3d';
@@ -281,6 +282,7 @@ export class Stage {
     this.claw.sync(this.rig.cam, {
       tier: p.tier, lunge, burn: !!p.rip?.burn, revving: revving(w), bolt: p.bolt, boltTime: t.boltTime,
       omega: p.omega, speed01: p.speed / t.burnMax, hidden: this.rig.mode !== 'fp' || this.rig.look > 0.4, stunned: p.stun > 0,
+      towSwing: p.tow ? wrapAngle(Math.atan2(p.tow.y - py, p.tow.x - px) - (ph + Math.PI)) * -1 : null,
     }, time, dt);
 
     // the Burn lane
