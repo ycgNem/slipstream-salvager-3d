@@ -1,0 +1,10 @@
+node_modules
+dist
+release
+e2e/out
+*.log
+slipstream-salvager-3d-web.zip
+.claude/settings.local.json
+.claude/worktrees
+.vite
+art/**/*.blend1

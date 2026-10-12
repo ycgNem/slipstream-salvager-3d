@@ -1,0 +1,54 @@
+{
+  "name": "slipstream-salvager-3d",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "First person: a fast scrap robot rips parts off enemies at full speed and bolts them onto itself. The 3D version of Slipstream Salvager.",
+  "author": "jacksonwalley",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "e2e": "node e2e/smoke.mjs",
+    "shots": "node e2e/shots.mjs",
+    "screens": "node e2e/screens.mjs",
+    "perf": "node e2e/perf.mjs",
+    "coverage": "node e2e/coverage.mjs",
+    "models": "node scripts/build-models.mjs",
+    "vendor": "node scripts/vendor.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win nsis portable"
+  },
+  "dependencies": {
+    "jsfxr": "^1.4.1",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/three": "0.186.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "playwright": "^1.48.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  },
+  "build": {
+    "appId": "com.jacksonwalley.slipstreamsalvager3d",
+    "productName": "Slipstream Salvager 3D",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["dist/**/*", "electron/**/*", "build/icon.png", "package.json"],
+    "win": { "target": ["nsis", "portable"], "icon": "build/icon.png", "signAndEditExecutable": false },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "Slipstream-Salvager-3D-Setup-${version}.exe"
+    },
+    "portable": { "artifactName": "Slipstream-Salvager-3D-Portable-${version}.exe" }
+  }
+}

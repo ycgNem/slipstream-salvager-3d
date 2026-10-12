@@ -1,0 +1,94 @@
+# Slipstream Salvager 3D — Roadmap
+
+Written 2026-10-12. `PLAN.md` is what the game is (and what first person changes), `THREEJS-NOTES.md`
+the rendering rules, `STYLE.md` the art rules, `DECISIONS.md` every call and why, `PROGRESS.md`
+what's built, `HANDOFF.md` where the last session stopped. The game's rules are the 2D game's
+(`C:\Users\jacks\Documents\slipstream-salvager`, read-only from here), vendored in `src/sim` and
+`src/data`.
+
+**Status (2026-10-12):** M0 and M1 are built, and an M2 pass of fixes from the critic's review is
+in. **Stopped for the owner's playtest.**
+
+**How every session runs:** start with *"Read ROADMAP.md and HANDOFF.md"*. Build the phase,
+deciding small things alone and logging them in `DECISIONS.md`. Run the phase's checks. Commit on
+`works`. **Push only when the owner says so** (no GitHub repo yet; DECISIONS #0a).
+
+---
+
+## Milestone 0 — Vendor, scaffold, prove the 3D pipeline (done)
+
+- Vendor `src/sim`, `src/data` (+ the 2D tests, the bots, the sprite-name list the data test reads)
+  from the 2D project with `vendor.json` and a drift test; copy the engine layer, e2e harness,
+  Electron wrapper, Pages workflow, service worker, manifest, `.bat` files and configs; rename every
+  identity string (PLAN.md "Identity").
+- Three.js pinned; `src/render3d/`: the 640x360 target with whole-number upscale, the composite
+  pass, the chassis-bolted camera with speed-driven FOV, one directional + one hemisphere light, the
+  Ring from `src/data/arena`, the claw in the lower middle of the view with its tier glow.
+- `src/input3d/`: pointer lock, steer demand, W/S, A/D, Rip on click/Space, Bolt on E, look-back on Q,
+  gamepad; the sim at 60 Hz through the existing loop, rendered with alpha interpolation.
+- One Rammer driven by the sim with its telegraph lane decal, hit-stop and shake from events, the
+  SFX bank through positional panners, the engine hum non-positional.
+- The rear strip and the screen-edge markers.
+- `e2e/launch.mjs` (SwiftShader flags), `e2e/shots.mjs` (scripted scenes incl. the five M0 ones:
+  at rest facing a Rammer, a Slipstream mid-pass, being charged from behind, a wall clank, the
+  results), `e2e/perf.mjs`, `e2e/smoke.mjs`.
+
+**Checks:** `npm test` (the vendored suite unchanged + the drift and steer tests), `npm run e2e`,
+`npm run shots`, `npm run perf`.
+
+## Milestone 1 — First-person parity with the 2D slice (done)
+
+1. Models by script in Blender into `art/<family>/build_*.py` and `.glb`: Rammer, booster, Scrapper,
+   claw, pillar, wall, gate, floor; pixel textures on Resurrect 64; placeholders replaced.
+2. The full Rammer presentation: stalk, near and far windup with the lane states, charge, skid with
+   steam, rebound, stripped limp and shove, crackle when damaged, wreck.
+3. Salvage: the tear burst, the towed booster on its cable (in the mirror), pickups, the 0.7 s bolt
+   with ratchet clicks and the claw animation, the booster on your back in the mirror, knock-loose
+   and shatter.
+4. The Burn: hold to rev with the view locked to the lane, the teal lane, the FOV push, release to
+   pierce, the wall stun.
+5. The speed readability stack (THREEJS-NOTES rule 8) and the HUD-hidden switch.
+6. Waves, gate warnings as floor decals and positional sound, the banner, results with best clear,
+   title with "3D" and "first person", pause, settings (volumes, music, shake, hints, mouse
+   sensitivity, invert, speed gauge, palette filter), the hints placed in the world.
+7. The dev tuning panel with live editing, flat mode, START WITH THE BOOSTER and Copy.
+8. The shots sweep over every state, the overlap audit on the HUD, smoke, perf, coverage, the sim
+   tests.
+
+## Milestone 2 — Playtest fixes (started: the critic's pass; the owner's notes next)
+
+Each of the owner's playtest notes becomes one change commit ending "DECISIONS #N". Rule changes
+the 3D game seems to need go to `DECISIONS.md` as **proposals**, since the sim is the 2D game's.
+
+### Playtest questions (for the owner)
+
+From the 2D game's M1 list, in first person:
+
+1. Did you ever want to stop moving? When, and why?
+2. Could you tell how fast you were going without looking at the gauge?
+3. Did a good pass feel *decisive*: a clear before, hit, after?
+4. Was getting clear after a pass natural, or did you end up stuck next to enemies?
+5. Did the Rammer's telegraph give you enough time? Too much? Did you ever get hit from behind
+   without a cue you could have read (the mirror, the edge marker, the sound)?
+6. After bolting on the Booster, did you take different lines or attack differently? Did you like
+   it, or prefer the base body? (The tuning panel's START WITH THE BOOSTER gives a whole run with it.)
+7. Movement: too floaty, too twitchy, or right? Mouse steering vs A/D vs a gamepad?
+8. **Flat mode:** play the three waves once with flat mode on. Was it noticeably less fun?
+9. If you imagine this with ten parts and a run of arenas: is the loop strong enough?
+
+The new one (PLAN.md): **10. Play once with the HUD hidden (H). Could you tell your speed with the
+HUD hidden?**
+
+---
+
+## Hard rules (the `qa-screens` checklist)
+
+1. 640x360 and whole-number scaling only; every texture nearest-filtered, no mipmaps; every frame
+   on the palette.
+2. Three.js lives only in `src/render3d/` (and the 2D layer's projections); `src/sim` and
+   `src/data` are vendored and never edited here (the drift test).
+3. `src/sim` never touches the DOM, audio or `Math.random`.
+4. Danger colors only for danger, speed colors only for speed, gold only for salvage.
+5. No text overlaps (the overlap audit must report zero).
+6. Every cue a 2D player could read has a first-person equivalent (DECISIONS #15).
+7. Within budget: ≤ 60 draw calls, ≤ 20k triangles, ≥ 15 fps in SwiftShader.

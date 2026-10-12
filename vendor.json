@@ -1,0 +1,32 @@
+{
+  "from": "C:/Users/jacks/Documents/slipstream-salvager",
+  "commit": "e0504afd144c8304200ccc0e63c39086bcddc751",
+  "files": {
+    "src/sim/arena.ts": "337498ef9f643367",
+    "src/sim/body.ts": "4fd3006f75c0c9f7",
+    "src/sim/bots.ts": "db57ef7b47cc95fd",
+    "src/sim/events.ts": "34c9e1dc4ef7884a",
+    "src/sim/rammer.ts": "3ab2b6d1f2c26d18",
+    "src/sim/rip.ts": "0658869e513cbedf",
+    "src/sim/salvage.ts": "b2e0d03ca91d165b",
+    "src/sim/tick.ts": "c4b853c24f4323a6",
+    "src/sim/waves.ts": "e58858000986c8bf",
+    "src/sim/world.ts": "0769ddbc6661bd9f",
+    "src/data/arena.ts": "b0bbb4b6e846e807",
+    "src/data/dirs.ts": "e50c395ed9033ade",
+    "src/data/mounts.ts": "89ab5dcd37ccba4c",
+    "src/data/palette.ts": "94812f9ed05b8715",
+    "src/data/parts.ts": "fa6e60fa1c2b88d4",
+    "src/data/tuning.ts": "f0541cba3eddcd35",
+    "src/data/waves.ts": "e7ece9933b1fa640",
+    "src/render/names.ts": "080159a487327fcc",
+    "tests/combat.test.ts": "f8bcb1a4e9929c9f",
+    "tests/data.test.ts": "6d992f16511598f8",
+    "tests/guards.test.ts": "c59ff9e2f737aa83",
+    "tests/helpers.ts": "c784543b697cc279",
+    "tests/movement.test.ts": "c5d82db1d1253a15",
+    "tests/salvage.test.ts": "78f834f9b599290d",
+    "scripts/bots.ts": "74c6c3522d7f5760"
+  },
+  "divergences": {}
+}
