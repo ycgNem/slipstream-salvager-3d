@@ -7,8 +7,11 @@ import { PALETTE } from '../data/palette';
 
 /** metres per sim pixel */
 export const M = 0.05;
-/** the Scrapper's eye height (m) */
-export const EYE = 0.55;
+/** the Scrapper's eye height (m): above its head plate, not in it (DECISIONS #27) */
+export const EYE = 0.68;
+/** how far the eye sits behind the body's centre (m), inside its 0.4 m radius so it never pokes
+ *  through a wall the body is touching */
+export const EYE_BACK = 0.22;
 
 export const wx = (x: number) => x * M;
 export const wz = (y: number) => y * M;

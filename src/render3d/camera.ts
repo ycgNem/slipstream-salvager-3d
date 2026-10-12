@@ -1,15 +1,16 @@
 // The cameras (THREEJS-NOTES rules 2 and 6). The main camera is bolted to the chassis: position =
 // the robot + 0.55 m up, yaw = the heading, no free look except the held look-back. FOV (horizontal)
-// widens from 70° at rest to 92° at Slipstream, eased, +4° while revving a Burn. Shake is at most
+// widens from 82° at rest to 102° at Slipstream, eased, +4° while revving a Burn (DECISIONS #27:
+// the owner asked for the view zoomed out; it was 70° to 92° at a 0.55 m eye). Shake is at most
 // 1.5° of roll and 3 cm of offset, never pitch. The rear camera looks the other way from just in
 // front of the robot, a little higher and tilted down, so the strip shows your own back, the
 // booster on it, the towed part on its cable and whatever is coming.
 import * as THREE from 'three';
-import { EYE, cameraYaw, ease, wx, wz } from './units';
+import { EYE, EYE_BACK, cameraYaw, ease, wx, wz } from './units';
 import { REAR, VIEW_H, VIEW_W } from './view';
 
-export const FOV_REST = 70;
-export const FOV_SLIP = 92;
+export const FOV_REST = 82;
+export const FOV_SLIP = 102;
 export const FOV_REV = 4;
 /** the rear mirror's horizontal field of view */
 export const REAR_HFOV = 110;
@@ -65,7 +66,7 @@ export class CameraRig {
     const s = Math.min(1, c.speed / c.slipAt);
     const over = Math.max(0, c.speed - c.topSpeed) / 90;
     const target = FOV_REST + (FOV_SLIP - FOV_REST) * (s * s * (3 - 2 * s)) + over * 5 + (c.revving ? FOV_REV : 0) + (c.burning ? 3 : 0);
-    this.hfov = ease(this.hfov, Math.min(104, target), dt, 0.14);
+    this.hfov = ease(this.hfov, Math.min(112, target), dt, 0.14);
     this.cam.fov = vfov(this.hfov, VIEW_W / VIEW_H);
     this.cam.updateProjectionMatrix();
     // look-back swings round in a tenth of a second
@@ -77,7 +78,9 @@ export class CameraRig {
     const fx = Math.cos(c.heading), fz = Math.sin(c.heading);
     const ox = this.noise(time, 1) * 0.03 * sh, oy = this.noise(time, 2) * 0.03 * sh;
     // offset in the camera's own right/up plane (right = (-fz, fx) on the floor)
-    this.cam.position.set(wx(c.x) - fz * ox, EYE + oy, wz(c.y) + fx * ox);
+    // a little behind the body's centre (looking back, a little ahead of it)
+    const bk = EYE_BACK * (1 - 2 * this.look);
+    this.cam.position.set(wx(c.x) - fz * ox - fx * bk, EYE + oy, wz(c.y) + fx * ox - fz * bk);
     this.cam.rotation.set(0, yaw, THREE.MathUtils.degToRad(1.5) * this.noise(time, 3) * sh + (c.stunned ? Math.sin(time * 9) * 0.05 : 0));
     // the rear camera: a metre ahead of the robot, looking back over it, so the mirror shows your
     // own back (the booster on it, the cable, the towed part) and the Ring behind

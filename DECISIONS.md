@@ -249,3 +249,13 @@ input; the sim is untouched (the drift test holds).
   project is on disk, so it never fails in CI. The build uses relative paths (`base: './'`), so it
   works under the Pages subpath. The Windows installer is not published anywhere (it's built
   locally into `release/`, which git ignores).
+
+## The owner's note on the published build (2026-10-12)
+
+- #27: **The view is zoomed out** (the owner: "looks good, see if you can zoom the perspective out a
+  little more"). The field of view is 82° at rest to 102° at Slipstream (was 70° to 92°; the cap with
+  a Burn and overspeed is 112°), so the 22° → 20° widening that tells you your speed is kept. The eye
+  is 0.68 m up (was 0.55) and 0.22 m behind the body's centre, inside its 0.4 m radius so the view
+  never pokes through a wall the body touches; looking back, it sits that far ahead instead. You see
+  more floor, so lanes, skid marks and the floor's rush read sooner, and the claw takes less of the
+  frame. Presentation only.
