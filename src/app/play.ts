@@ -6,7 +6,7 @@ import { C } from '../data/palette';
 import { wrapAngle } from '../data/dirs';
 import { DEBUG_KEYS, keyLabel, type Input } from '../engine/input';
 import type { Audio } from '../engine/audio/audio';
-import { createWorld, type InputFrame, type World } from '../sim/world';
+import { createWorld, DT, type InputFrame, type World } from '../sim/world';
 import { step } from '../sim/tick';
 import { revving } from '../sim/rip';
 import type { SimEvent } from '../sim/events';
@@ -47,6 +47,9 @@ export class Play {
   endT = 0;
   private ripLatch = false;
   private boltLatch = false;
+  /** a bolt press that the sim refused (mid-lunge, right after the tear) is retried this long (s) */
+  private boltPend = 0;
+  private boltSent = false;
   time = 0;
   frozen = false;
   /** events from the last ticks (e2e inspection) */
@@ -106,10 +109,14 @@ export class Play {
         mouseDx: this.tuning.open ? 0 : input.takeLook(),
         padX: Math.abs(pad.x) > 0.05 ? pad.x : 0,
       }, { sens: sensFromSetting(this.host.settings.sens), invert: this.host.settings.invert });
+      let bolt = input.isDown('bolt') || (locked && input.mouse.down[2]) || this.boltLatch;
+      // the sim reads the bolt on its press edge and refuses it during the lunge: a reflex press
+      // right after TORN OFF! is pressed again for it, every other tick, until it takes
+      if (this.boltPend > 0 && w.player.tow && w.player.bolt === null) bolt = !this.boltSent;
       frame = {
         ...xy,
         rip: input.isDown('rip') || (locked && input.mouse.down[0]) || this.ripLatch,
-        bolt: input.isDown('bolt') || (locked && input.mouse.down[2]) || this.boltLatch,
+        bolt,
       };
     }
     this.prev = snapshot(w);
@@ -117,13 +124,16 @@ export class Play {
     if (advanced) {
       this.ripLatch = false;
       this.boltLatch = false;
+      this.boltSent = frame.bolt;
+      this.boltPend = w.player.bolt !== null ? 0 : Math.max(0, this.boltPend - DT);
       this.host.stage.ticked(w, this.steer.scrub);
       // a hard turn scrubbing speed squeals (once per turn), so the cost of the mouse flick is heard
       if (this.steer.scrub && !this.scrubbing) this.host.audio.sfx('skid', 0.45, 1.3);
       this.scrubbing = this.steer.scrub;
       // a Rammer behind you that goes into its skid has its back to you: the tear is on
       for (const r of w.rammers) {
-        if (r.state === 'skid' && this.rstate.get(r.id) === 'charge' && this.outOfView(r.id)) this.mirrorGold = 0.7;
+        // (not the one that just hit you: red and gold at once says nothing)
+        if (r.state === 'skid' && this.rstate.get(r.id) === 'charge' && this.outOfView(r.id) && this.hurt <= 0) this.mirrorGold = 0.7;
         this.rstate.set(r.id, r.state);
       }
     } else this.steer.held();
@@ -135,10 +145,14 @@ export class Play {
 
   /** Whether a Rammer is outside the main view (behind or beside you). */
   private outOfView(id: number): boolean {
+    return !this.inCam(id, this.host.stage.camera);
+  }
+
+  private inCam(id: number, cam: THREE.Camera): boolean {
     const v = this.host.stage.rammerView(id)?.pos;
     if (!v) return false;
-    const n = v.clone().project(this.host.stage.camera);
-    return !(n.z < 1 && Math.abs(n.x) < 0.97 && Math.abs(n.y) < 0.97);
+    const n = v.clone().project(cam);
+    return n.z < 1 && n.z > -1 && Math.abs(n.x) < 0.97 && Math.abs(n.y) < 0.97;
   }
 
   private rammerPos(id: number): THREE.Vector3 | null {
@@ -305,7 +319,10 @@ export class Play {
     const input = this.host.input;
     const locked = input.look.locked;
     if (input.wasPressed('rip') || (locked && input.mouse.pressed[0])) this.ripLatch = true;
-    if (input.wasPressed('bolt') || (locked && input.mouse.pressed[2])) this.boltLatch = true;
+    if (input.wasPressed('bolt') || (locked && input.mouse.pressed[2])) {
+      this.boltLatch = true;
+      this.boltPend = 0.4;
+    }
     if (input.wasPressed('hud')) this.hudHidden = !this.hudHidden;
     if (DEBUG_KEYS && input.wasPressed('debug')) {
       this.tuning.open = !this.tuning.open;
@@ -337,7 +354,8 @@ export class Play {
   effects(dt: number) {
     const p = this.world.player;
     this.overlay.update(dt, p.tier === 'slip' ? Math.max(0, Math.min(1, (p.speed - this.world.t.slipAt) / 60 + 0.35)) : 0);
-    const behind = this.world.rammers.some((r) => r.state === 'windup' && this.outOfView(r.id));
+    // the mirror hint only when the mirror really shows it (beside you only the arrow does)
+    const behind = this.world.rammers.some((r) => r.state === 'windup' && this.outOfView(r.id) && this.inCam(r.id, this.host.stage.rig.rear));
     if (this.host.input.isDown('look')) this.hints.looked();
     this.hints.update(this.world, dt, behind);
     this.mirrorGold = Math.max(0, this.mirrorGold - dt);
@@ -385,7 +403,7 @@ export class Play {
     if (!w.result && !this.paused) {
       if (this.mirrorGold > 0 && Math.floor(this.mirrorGold * 10) % 2 === 0) drawMirrorFrame(ui, C.gold2);
       drawMarkers(ui, stage.camera, stage.rig.rear, w, (id) => stage.rammerView(id)?.pos ?? null, this.time);
-      this.hints.draw(ui, w, stage.camera, this.keys, true);
+      this.hints.draw(ui, w, stage.camera, this.keys, true, this.overlay.drawn);
     }
     if (showHud) drawHud(ui, w, { gauge: s.gauge, keys: this.keys, boltHint: this.hints.current === 'bolt' });
     if (DEBUG_KEYS) this.tuning.draw(ui, w.t, (on) => (w.flat = on), (on) => (w.player.part = on ? 'booster' : null), dt);

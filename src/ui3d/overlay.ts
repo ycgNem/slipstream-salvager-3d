@@ -45,6 +45,8 @@ interface FloatText {
 
 export class Overlay {
   texts: FloatText[] = [];
+  /** where this frame's floating texts were drawn (the hints keep clear of them) */
+  drawn: { x0: number; y0: number; x1: number; y1: number }[] = [];
   banner: { text: string; sub: string; t: number; life: number } | null = null;
   private lines: { a: number; r: number; v: number; len: number; c: number }[] = [];
   private seed = 5;
@@ -106,7 +108,7 @@ export class Overlay {
       ui.fill(319, ry - 3, 2, 2, C.frost);
       ui.fill(319, ry + 3, 2, 2, C.frost);
       if (Math.abs(rx - 320) > 2) {
-        const c = opts.scrub && Math.floor(opts.time * 16) % 2 === 0 ? C.white : Math.abs(off) > 0.5 ? C.cruiseHi : C.mist;
+        const c = opts.scrub && Math.floor(opts.time * 16) % 2 === 0 ? C.white : Math.abs(off) > 0.5 ? C.frost : C.mist;
         ui.fill(rx - 3, ry, 2, 2, c);
         ui.fill(rx + 2, ry, 2, 2, c);
         ui.fill(rx - 1, ry - 2, 2, 1, c);
@@ -123,6 +125,7 @@ export class Overlay {
       }
     }
     // floating texts
+    this.drawn.length = 0;
     for (const t of this.texts) {
       let p: { x: number; y: number } | null = { x: t.sx, y: t.sy };
       if (t.at) p = project(cam, t.at);
@@ -133,6 +136,8 @@ export class Overlay {
       const x = Math.max(4 + textWidth(t.text) / 2, Math.min(636 - textWidth(t.text) / 2, p.x));
       const y = Math.max(top + 2, Math.min(330, p.y - 14 - rise));
       ui.text(t.text, x, y, t.color, { align: 'center', shadow: C.ink });
+      const tw = textWidth(t.text);
+      this.drawn.push({ x0: x - tw / 2 - 2, y0: y - 2, x1: x + tw / 2 + 2, y1: y + 10 });
     }
     // the stun stars
     if (opts.stun) {

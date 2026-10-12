@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { step } from '../src/sim/tick';
 import { createWorld, type World } from '../src/sim/world';
-import { KEY_RATE, MAX_PEND, Steer, type SteerIn } from '../src/input3d/steer';
+import { KEY_RATE, MAX_OFF, MAX_PEND, PEND_TIME, Steer, type SteerIn } from '../src/input3d/steer';
 import { openArena } from './helpers';
 import { wrapAngle } from '../src/data/dirs';
 
@@ -71,8 +71,31 @@ describe('first-person steering', () => {
       braked ||= w.player.brake;
     }
     expect(braked).toBe(false);
-    // the body arrived at the whole demand (kept past the 75° the sim sees at once) and stopped there
-    expect(Math.abs(wrapAngle(w.player.heading - h0 - MAX_PEND))).toBeLessThan(0.05);
+    // the body arrived at the whole kept demand (past the 75° the sim sees at once, but no more than
+    // PEND_TIME of its own turning at the speed it flicked at) and stopped there
+    const turned = wrapAngle(w.player.heading - h0);
+    expect(turned).toBeGreaterThan(MAX_OFF + 0.2);
+    expect(turned).toBeLessThanOrEqual(w.t.turnHigh * PEND_TIME + 0.05);
+    expect(Math.abs(s.off)).toBeLessThan(0.02);
+  });
+
+  it('a flick at rest is kept whole, up to 175°', () => {
+    const w = world(), s = new Steer();
+    const h0 = w.player.heading;
+    drive(w, s, { mouseDx: 1200 }, 1); // 3 rad
+    drive(w, s, {}, 30);
+    expect(wrapAngle(w.player.heading - h0)).toBeCloseTo(3, 1);
+  });
+
+  it('a turn thrust wins straight back is not shown as scrub', () => {
+    const w = world(), s = new Steer();
+    drive(w, s, { thrust: 1 }, 150); // top speed
+    let scrubbed = false;
+    for (let i = 0; i < 12; i++) {
+      drive(w, s, { thrust: 1, right: true }, 1); // a 0.2 s tap
+      scrubbed ||= s.scrub;
+    }
+    expect(scrubbed).toBe(false);
   });
 
   it('the same flick turns you the same amount at rest and at speed', () => {
@@ -98,21 +121,31 @@ describe('first-person steering', () => {
     expect(w.player.speed).toBeLessThan(w.t.pivotSpeed);
   });
 
-  it('a held turn key ramps from a gentle turn to a hard one that scrubs at speed', () => {
+  it('a held turn key ramps from a gentle turn to a hard one', () => {
     const w = world(), s = new Steer();
-    drive(w, s, { thrust: 1 }, 50); // about Slipstream
-    const v0 = w.player.speed;
-    expect(v0).toBeGreaterThan(w.t.slipAt - 5);
+    drive(w, s, { thrust: 1 }, 14); // about 150 px/s, where the body can turn faster than 6.5 rad/s
     const h0 = w.player.heading;
     drive(w, s, { thrust: 1, right: true }, 12); // a 0.2 s tap: gentle
-    const tap = wrapAngle(w.player.heading - h0);
-    expect(tap).toBeLessThan(KEY_RATE * 0.2 + 0.02);
+    expect(wrapAngle(w.player.heading - h0)).toBeLessThan(KEY_RATE * 0.2 + 0.02);
+    drive(w, s, { thrust: 1, right: true }, 18);
+    const h1 = w.player.heading;
+    drive(w, s, { thrust: 1, right: true }, 6);
+    expect(wrapAngle(w.player.heading - h1) / 0.1).toBeGreaterThan(KEY_RATE + 1);
+  });
+
+  it('a mouse flick at Slipstream that costs speed is shown as scrub', () => {
+    const w = world(), s = new Steer();
+    drive(w, s, { thrust: 1 }, 45);
+    expect(w.player.speed).toBeGreaterThan(w.t.slipAt - 10);
+    const v0 = w.player.speed;
     let scrubbed = false;
-    for (let i = 0; i < 30; i++) {
-      drive(w, s, { thrust: 1, right: true }, 1);
+    drive(w, s, { thrust: 1, mouseDx: 600 }, 1);
+    for (let i = 0; i < 20; i++) {
+      drive(w, s, { thrust: 1 }, 1);
       scrubbed ||= s.scrub;
     }
     expect(scrubbed).toBe(true);
+    expect(w.player.speed).toBeLessThan(v0);
   });
 
   it('a demand made during a lunge fades instead of snapping the view afterwards', () => {

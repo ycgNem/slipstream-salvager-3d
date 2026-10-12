@@ -18,7 +18,9 @@ What is built. Newest first.
   muddy flash colors; a stray line across the sky; moiré in the lanes; towing vs bolted looking the
   same in the mirror; and smaller QA findings. A first-time mirror hint, a clearer tear hint, and a
   controls card on the pause screen.
-- **Checks:** 71 tests; smoke; 33 scenes with 0 overlaps and 0 off-palette pixels; perf 54-63 fps, max
+- **The critic's re-check** (DECISIONS #25): the scrub cue only on a real loss, mouse turns no longer
+  committed for long, hints step aside for reward text, a reflex E after a tear is kept.
+- **Checks:** 74 tests; smoke; 33 scenes with 0 overlaps and 0 off-palette pixels; perf 54-63 fps, max
   56 draw calls, ~15k triangles; bot watches with no console errors.
 
 ## 2026-10-12 — Milestone 1: first-person parity with the 2D slice

@@ -58,8 +58,11 @@ Read this first, every session.
   behind you in first person), and a low-speed brake (S coasts the last 80 px/s, because the sim's
   brake pivots below that). Neither is in; both need a sim change, which is the 2D game's.
 - **Re-vendoring the 2D M3 rules** (DECISIONS #21) is the natural start of a 3D M3.
-- **Not verified by a human yet:** how the mouse feels (sensitivity default, the 175° kept turn), and
+- **Not verified by a human yet:** how the mouse feels (sensitivity default, the kept turn), and
   whether the muffled-from-behind sound helps. These are the playtest's job.
+- **The critic's last word** (DECISIONS #25): the tear opening behind you is still hard at speed,
+  because the body's own turn rate is the limit. Try `skidTime` +0.3 in the tuning panel (backtick)
+  and see if the hit-the-back loop opens up.
 
 ## How to run everything (for sessions)
 
@@ -71,7 +74,7 @@ Put the portable Node first in every shell:
 |---|---|---|
 | Play (dev) | `npm run dev` | port 5183; `.claude/launch.json` has `game3d` on 5191 |
 | Typecheck | `npm run typecheck` | |
-| Unit tests | `npm test` | 71: the vendored 2D suite (61, unchanged), the drift test (2), the steer-adapter tests (8) |
+| Unit tests | `npm test` | 74: the vendored 2D suite (61, unchanged), the drift test (2), the steer-adapter tests (11) |
 | Drift check | `npm run vendor -- --check` | what the 2D project changed since the snapshot; `--accept '#N'` keeps ours against a decision |
 | Strategy bots | `npx vite-node scripts/bots.ts` | the 2D bots on the vendored sim |
 | Smoke test | `npm run e2e` | real key presses, pointer lock asked, pause, zero console errors |

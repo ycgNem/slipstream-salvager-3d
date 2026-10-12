@@ -33,8 +33,11 @@ export interface SteerCfg {
 
 /** The direction sent to the sim never runs further than this ahead of the body (below its 150° brake). */
 export const MAX_OFF = (75 * Math.PI) / 180;
-/** ...but the demand itself can: a mouse turn is kept whole up to this, and worked off (DECISIONS #23) */
+/** ...but the demand itself can: a mouse turn is kept whole up to this, and worked off (DECISIONS #23),
+ *  as long as that is at most PEND_TIME of the body's own turning (so a flick never commits you to a
+ *  long turn after your hand has stopped: 175° at rest, ~155° at Slipstream, ~103° at top speed) */
 export const MAX_PEND = (175 * Math.PI) / 180;
+export const PEND_TIME = 0.45;
 /** keys and the stick turn the demand at most this fast (rad/s) at first: a tap never scrubs */
 export const KEY_RATE = 4.2;
 /** held longer than KEY_HARD_AFTER, they ramp up to this (or the body's own rate, if lower), which
@@ -46,6 +49,8 @@ const COAST_STEER = 0.06;
 /** stop asking to brake this far above the pivot speed, so S never flips the robot round (the sim's
  *  brake sheds 15 px/s a tick, and pivots at or below pivotSpeed) */
 const BRAKE_MARGIN = 20;
+/** net speed loss (px/s²) a turn has to cost before it's shown and heard as scrub */
+const SCRUB_SHOWN = 30;
 
 export class Steer {
   /** the demanded heading, absolute (rad, sim space) */
@@ -88,13 +93,14 @@ export class Steer {
     const locked = !!p.rip || revving(w) || p.knock > 0 || p.stun > 0 || braking;
     // the whole mouse turn is kept (up to MAX_PEND), so the same flick turns you the same amount at
     // any speed; the sim only ever sees MAX_OFF of it at a time
+    const bodyRate = turnRate(playerStats(w), p.speed) * (p.bolt !== null ? t.boltSteerMul : 1);
+    const pend = Math.max(MAX_OFF, Math.min(MAX_PEND, bodyRate * PEND_TIME));
     let off = wrapAngle(this.demand - p.heading) + (cfg.invert ? -1 : 1) * s.mouseDx * cfg.sens;
-    off = Math.max(-MAX_PEND, Math.min(MAX_PEND, off));
+    off = Math.max(-pend, Math.min(pend, off));
     // a demand the body can't act on fades fast instead of snapping the view later
     if (locked) off *= Math.exp(-DT / 0.1);
 
     // keys and stick: a turn at a gentle rate, then (held) a hard one, carrying the demand along
-    const bodyRate = turnRate(playerStats(w), p.speed) * (p.bolt !== null ? t.boltSteerMul : 1);
     const k = Math.max(-1, Math.min(1, (s.right ? 1 : 0) - (s.left ? 1 : 0) + s.padX));
     const kd = Math.abs(k) < 0.2 ? 0 : Math.sign(k);
     this.keyHeld = kd !== 0 && kd === this.keyDir ? this.keyHeld + DT : 0;
@@ -102,7 +108,7 @@ export class Steer {
     const hard = Math.max(0, Math.min(1, (this.keyHeld - KEY_HARD_AFTER) / KEY_HARD_RAMP));
     const keyRate = KEY_RATE + (KEY_RATE_HARD - KEY_RATE) * hard * Math.abs(k);
     const kOff = locked ? 0 : k * Math.min(bodyRate, keyRate) * DT;
-    const want = Math.max(-MAX_PEND, Math.min(MAX_PEND, off + kOff));
+    const want = Math.max(-pend, Math.min(pend, off + kOff));
     this.demand = p.heading + want;
     this.off = want;
     const target = p.heading + Math.max(-MAX_OFF, Math.min(MAX_OFF, want));
@@ -118,7 +124,12 @@ export class Steer {
     const ask = wrapAngle(target - p.heading);
     const lim = p.speed < 1 ? Infinity : bodyRate * DT;
     this.expected = locked || m <= 0.05 ? 0 : Math.max(-lim, Math.min(lim, ask));
-    this.scrub = p.speed >= 1 && p.speed * (Math.abs(this.expected) / DT) > t.scrubLat;
+    // scrub that thrust can't replace: at top speed a turn just over scrubLat is won straight back,
+    // and warning about it would teach "never turn"
+    const loss = t.scrubK * (p.speed * (Math.abs(this.expected) / DT) - t.scrubLat);
+    // (thrust only pushes along the nose: a target far off it, like a mouse flick's, barely pushes)
+    const gain = m > 0.05 && !braking ? t.accHigh * m * Math.max(0, Math.cos(ask - this.expected)) : 0;
+    this.scrub = p.speed >= 1 && loss - gain > SCRUB_SHOWN;
     this.lastHeading = p.heading;
     return { x: Math.cos(dir) * m, y: Math.sin(dir) * m };
   }

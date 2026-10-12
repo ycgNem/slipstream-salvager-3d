@@ -212,3 +212,28 @@ input; the sim is untouched (the drift test holds).
   - **A low-speed brake:** the sim can't brake below pivotSpeed + 15 without pivoting, so S coasts
     the last 80 px/s (about 1.2 s). A 3D-only rule "a brake input below pivotSpeed just decelerates"
     would need a sim change.
+- #25: **The critic's re-check of #23** (same agent, same checks re-run): fixed S + turn, the crash,
+  the Burn lane, the markers, the flash colors; the floor mostly (2 → 5 colors in Crawl, a small
+  step: judge it in motion); the mouse partly; the tear behind you not at speed (the body's own turn
+  rate, 4-5 rad/s near top speed, is the limit, not the key rate: that's the skidTime **Proposal** in
+  #24, which the tuning panel can try live). What it found new, and what changed:
+  - **The scrub cue fired when turning cost nothing** (at top speed a 4 rad/s turn is just over
+    scrubLat, and thrust wins it straight back): it would have taught "never turn". Scrub is now
+    shown and heard only on a net loss: the scrub minus what thrust gives back along the nose
+    (`steer.ts`, more than 30 px/s²).
+  - **A mouse turn stayed committed after the hand stopped** (up to 1.1 s with the Booster), which
+    reads as mouse smoothing. The kept turn is capped at 0.45 s of the body's own turning (never
+    under 75°): 175° at rest, about 155° at Slipstream, about 103° at top speed.
+  - **Hints covered the reward text** (the Burn hint over BOLTED ON!, the mirror hint over TORN
+    OFF!). A hint now steps aside for a frame where a floating text is drawn in its place; the overlap
+    audit couldn't see this, since it only happens in play.
+  - **The mirror hint fired when only the arrow showed the Rammer**, and pushed the tear hint aside
+    for 4 s. It now fires only when the windup is in the mirror, and ranks below the tear and bolt hints.
+  - **A reflex E right after TORN OFF! was lost** (the sim reads the bolt on its press edge and
+    refuses it during the lunge, so the press was used up). A press is now retried, every other tick,
+    for 0.4 s while you're towing and not bolting. Input buffering only, like the sim's own Rip buffer.
+  - Smaller: the gold mirror flash skips the Rammer that just hit you (red and gold at once said
+    nothing); the reticle past 0.5 rad is frost, not lime (a speed color).
+  - Left as they are: S with a turn creeps at 14 px/s (the sim's minimum stick); a flick made during
+    the 0.18 s brake from top speed mostly fades (the body can't turn while braking); 3 draw calls of
+    headroom.

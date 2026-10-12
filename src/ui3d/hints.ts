@@ -53,11 +53,11 @@ export class Hints {
     }
     if (this.current === 'mirror' && this.shownFor > 4) this.done('mirror');
     const want: HintId | null =
-      !this.seen.mirror && (behind || this.current === 'mirror') ? 'mirror'
-      : !this.seen.bolt && w.player.tow ? 'bolt'
+      !this.seen.bolt && w.player.tow ? 'bolt'
       : !this.seen.burn && w.player.part === 'booster' && !w.flat ? 'burn'
       : !this.seen.speed && w.wave.phase !== 'banner' ? 'speed'
       : !this.seen.tear && this.seen.speed && w.rammers.length > 0 ? 'tear'
+      : !this.seen.mirror && (behind || this.current === 'mirror') ? 'mirror'
       : null;
     if (want !== this.current) {
       this.current = want;
@@ -66,7 +66,8 @@ export class Hints {
     this.shownFor += dt;
   }
 
-  draw(ui: UI, w: World, cam: THREE.Camera, keys: { rip: string; bolt: string; look: string }, rear: boolean) {
+  /** `avoid`: where this frame's floating texts are (TORN OFF!, BOLTED ON!): the hint steps aside. */
+  draw(ui: UI, w: World, cam: THREE.Camera, keys: { rip: string; bolt: string; look: string }, rear: boolean, avoid: { x0: number; y0: number; x1: number; y1: number }[] = []) {
     if (!this.current) return;
     const text = this.current === 'speed' ? 'BUILD SPEED - THE CLAW TURNS TEAL'
       : this.current === 'tear' ? `LET IT CHARGE PAST, SWING ROUND, HIT ITS GOLD BACK AT TEAL (${keys.rip})`
@@ -92,6 +93,8 @@ export class Hints {
       } else y = top + 4;
     }
     x = Math.max(4 + tw / 2, Math.min(636 - tw / 2, x));
+    const bx0 = x - tw / 2 - 4, bx1 = x + tw / 2 + 4, by0 = y - 3, by1 = y + 11;
+    if (avoid.some((r) => r.x0 < bx1 && r.x1 > bx0 && r.y0 < by1 && r.y1 > by0)) return;
     ui.fill(Math.round(x - tw / 2 - 4), y - 3, tw + 8, 14, C.ink);
     const blink = this.shownFor < 0.6 && Math.floor(this.shownFor * 10) % 2 === 1;
     const col = this.current === 'speed' || this.current === 'burn' ? C.speed4 : this.current === 'mirror' ? C.frost : C.gold3;
