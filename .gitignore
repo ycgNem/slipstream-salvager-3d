@@ -8,3 +8,4 @@ slipstream-salvager-3d-web.zip
 .claude/worktrees
 .vite
 art/**/*.blend1
+__pycache__
