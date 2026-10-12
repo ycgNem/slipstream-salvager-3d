@@ -76,6 +76,13 @@ export class Stage {
   private ticks = 0;
   /** the interpolated player, for the HUD, markers and sound */
   view = { x: 0, y: 0, heading: 0 };
+  /**
+   * The camera's lag behind a heading that jumped (a head-on clank reflects you, a charge throws you,
+   * a crawl rip bounces you): the view swings through it in about a tenth of a second instead of
+   * teleporting (DECISIONS #22). Steering never jumps, so this is zero in normal driving.
+   */
+  private yawLag = 0;
+  private lastPh: number | null = null;
 
   constructor(private models: ModelSet) {
     this.scene.background = pal(C.ink);
@@ -117,6 +124,8 @@ export class Stage {
       this.arena.warn[g.id] = 0;
     }
     this.world = w;
+    this.lastPh = null;
+    this.yawLag = 0;
   }
 
   /** Per sim tick: dust, skid marks, steam, smoke, crackle, the plume (the 2D ticked()). */
@@ -265,11 +274,21 @@ export class Stage {
     const px = lerp(prev.px, p.x, alpha), py = lerp(prev.py, p.y, alpha), ph = lerpAngle(prev.ph, p.heading, alpha);
     this.view = { x: px, y: py, heading: ph };
 
+    // a heading that jumped this frame: the camera swings through it
+    if (this.lastPh !== null) {
+      const jump = wrapAngle(ph - this.lastPh);
+      if (Math.abs(jump) > 0.4) this.yawLag = wrapAngle(this.yawLag - jump);
+    }
+    this.lastPh = ph;
+    this.yawLag *= Math.exp(-dt / 0.07);
+    if (Math.abs(this.yawLag) < 1e-3) this.yawLag = 0;
+    const camH = ph + this.yawLag;
+
     // cameras
     if (this.rig.mode === 'fp') {
       const ahead = o.lookBack ? ph + Math.PI : ph;
       const reach = Math.max(0, wx(laneLength(w.arena, px, py, ahead, 24, 3)) - 0.12);
-      this.rig.update({ x: px, y: py, heading: ph, speed: p.speed, slipAt: t.slipAt, topSpeed: t.topSpeed, revving: revving(w), burning: !!p.rip?.burn, lookBack: o.lookBack, stunned: p.stun > 0, reach }, dt, time);
+      this.rig.update({ x: px, y: py, heading: camH, speed: p.speed, slipAt: t.slipAt, topSpeed: t.topSpeed, revving: revving(w), burning: !!p.rip?.burn, lookBack: o.lookBack, stunned: p.stun > 0, reach }, dt, time);
     } else this.rig.orbit(wx(w.arena.w / 2), wz(w.arena.h / 2), time);
     this.rig.cam.updateMatrixWorld();
 
