@@ -31,107 +31,107 @@
   "divergences": {
     "src/sim/arena.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "9682f8991f94183b"
     },
     "src/sim/body.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "5d3d60e9ce9eb13b"
     },
     "src/sim/bots.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "a421391c6903dce9"
     },
     "src/sim/events.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "aa0bc926b3f68037"
     },
     "src/sim/rammer.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
-      "theirs": "9e03d6877550b3fa"
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
+      "theirs": "aa2a5353a7d4388d"
     },
     "src/sim/rip.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
-      "theirs": "fbd890f893e9e119"
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
+      "theirs": "60c1662a1f05403f"
     },
     "src/sim/salvage.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
-      "theirs": "d69c37290185e0e7"
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
+      "theirs": "f02a569195a5b300"
     },
     "src/sim/tick.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "523c83aa64ec0008"
     },
     "src/sim/waves.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "0d9044088d4eb08c"
     },
     "src/sim/world.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
-      "theirs": "31615db2f6465a19"
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
+      "theirs": "6435854b37f16c98"
     },
     "src/data/arena.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
-      "theirs": "fde2c4ae9fb21310"
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
+      "theirs": "b0647f1d25fd2bce"
     },
     "src/data/parts.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "497c5708a25e7f76"
     },
     "src/data/tuning.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
-      "theirs": "7295a4e42d30624c"
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
+      "theirs": "58931f3f4b60506c"
     },
     "src/data/waves.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "a5c6b8a9a5d5d448"
     },
     "tests/combat.test.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "87c6abf8943ffa80"
     },
     "tests/data.test.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "080a0569bb926e7c"
     },
     "tests/guards.test.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "a191a7c4217afd25"
     },
     "tests/helpers.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "2904c9ba283a4027"
     },
     "tests/movement.test.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "6492c6cec24b2228"
     },
     "tests/salvage.test.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "02fcf908c9421b81"
     },
     "scripts/bots.ts": {
       "decision": "#21",
-      "at": "c2506b1097965292abb283148a6858b87cc6b33a",
+      "at": "45dc78f96b541396c7f56d6915046173d1f939ed",
       "theirs": "47cc0502c9282dd5"
     }
   }

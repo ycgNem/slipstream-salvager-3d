@@ -131,7 +131,10 @@ the code.
   a fix. Kept our copy with `node scripts/vendor.mjs --accept '#21'`, which records the 2D version of
   each file it accepted in `vendor.json`: if the 2D project changes any of them again, the test fails
   again. **For the owner:** re-vendoring M3 is the natural start of a 3D M3 (the run, the yards and
-  two more enemy models); the 2D tests' 61 cases here are the M2 ones.
+  two more enemy models); the 2D tests' 61 cases here are the M2 ones. **Accepted again** at 2D
+  `45dc78f` the same night: the 2D project finished its M4 (art) and an M3 review pass (Rammers no
+  longer stall at corners, charges run 120 px past you, and more; 2D DECISIONS #78-#79) while this
+  game's M2 pass was built. Same call; a re-vendor now would bring all of it.
 - #22: **The camera swings through a heading that jumps** (a head-on clank reflects you, a charge
   throws you, a crawl Rip bounces you off): when the interpolated heading moves more than 0.4 rad in a
   frame, the view lags behind it and catches up with a 0.07 s time constant, instead of teleporting

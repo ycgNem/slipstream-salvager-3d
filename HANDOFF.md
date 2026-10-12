@@ -11,8 +11,9 @@ Read this first, every session.
 - This is a SEPARATE game from the 2D Slipstream Salvager at `C:\Users\jacks\Documents\slipstream-salvager`.
   That folder is read-only for this project: never write, commit or run npm there.
 - **The rules are the 2D game's M2 slice** (vendored from 2D `e0504af`). The 2D project moved on to
-  its M3 (a run, more enemies) during the night; this game deliberately stays on the slice until the
-  owner decides (DECISIONS #21). Re-vendoring M3 is the natural start of a 3D M3.
+  its M3 (a run, more enemies) and M4 (art, 0.2.0) during the night; this game deliberately stays on
+  the slice until the owner decides (DECISIONS #21, accepted again at 2D `45dc78f`). Re-vendoring is
+  the natural start of a 3D M3.
 - No GitHub repo yet; the Pages workflow is inert. Branch `works`. Nothing pushed.
 
 ## How to playtest (for the owner)
