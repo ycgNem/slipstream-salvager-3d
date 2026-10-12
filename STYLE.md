@@ -43,10 +43,11 @@ switched off in Settings for comparison.
 | **Speed** | teals 40–43, blue 48 | the claw glow and ring at Slipstream, speed lines, the grit that rushes past, the Burn lane, the tier-up edge flash | enemies, danger |
 | Cruise | lime 32–33 | the claw glow and gauge band at Cruise | |
 | Crawl | cool neutrals 6–7 | the claw glow and gauge at Crawl | |
-| **Danger** | reds 11, 12, 15 and magenta 59–60 | Rammer lanes, eyes and hazard stripes, edge markers, hurt flashes, gate lamps and warnings | anything friendly or decorative |
-| **Salvage** | gold 18, amber 23, pale yellow 28 | the booster (on a Rammer, loose, towed, bolted on), the cable, the tear burst, the HUD part slot | enemy bodies |
+| **Danger** | reds 11, 12, 15 and magenta 59–60 | enemy lanes, eyes and the Rammer's hazard stripes, edge markers, hurt flashes, gate lamps and warnings | anything friendly or decorative |
+| **Salvage** | gold 18, amber 23, pale yellow 28 | every part (booster, Grip Treads, Plow, Jaws: on an enemy, loose, towed, bolted on, as view models), the cable, the tear burst, the HUD part slots, an open exit (its lamps, floor chevrons, sign and arrows: it's where the next part is) | enemy bodies |
 | Player | rust and orange 19–22, 16, cream 63, plum outline 0 | the claw, the Scrapper | |
 | Rammer | blues and slate 44–46, purple 50, sage 35 | the Rammer, so it reads as "not you" | |
+| Snapper | lavender and purple 50–52, blue steel 44–46, ink 49 | the Snapper (the 2D sheet's colours): small, low, lilac; its treads are the gold part | |
 | Arena | warm neutrals 1–5, olive 24–25 | floor, walls, pillars, gates; low contrast | |
 
 Sparks are white, frost and orange, never gold. Shadows are dithered plum blobs, never blurred.
@@ -60,16 +61,23 @@ Sparks are white, frost and orange, never gold. Shadows are dithered plum blobs,
 - **Node names are an API** (`art/README.md`): `rammer` {body, eyes, mount_rear}, `booster` {shell,
   nozzle_glow; origin at the mounting flange}, `scrapper` {body, tread_l, tread_r, mount_rear,
   claw_root}, `claw` {arm, jaw_l, jaw_r, glow}, `pillar`, `wall`, `gate` {frame, door_l, door_r,
-  lamp}, `floor`. Rigid parts only: no skeletons (PLAN.md "Not in Milestone 1").
+  lamp}, `floor`; M3: `snapper` {body, eyes, mount_front}, `treads`, `plow` {blade}, `jaws` {jaw_l,
+  jaw_r}, `post`, `tower`, `block`, `barrier`. Rigid parts only: no skeletons (PLAN.md "Not in
+  Milestone 1").
 - **Triangle budgets:** Rammer ≤ 600 with its booster (body + eyes ≤ 450), any part ≤ 300, booster
-  ≤ 200, Scrapper ≤ 350, claw ≤ 300, pillar ≤ 150, wall segment ≤ 60, gate ≤ 250, floor 2.
-  `npm run coverage` checks them. ≤ 20k on screen, ≤ 60 draw calls a frame (`npm run perf`).
+  ≤ 200, Scrapper ≤ 350, claw ≤ 300, pillar ≤ 150, wall segment ≤ 60, gate ≤ 250, floor 2; M3:
+  Snapper ≤ 350, treads ≤ 200, plow ≤ 120, jaws ≤ 160, post ≤ 120, tower ≤ 200, block ≤ 300,
+  barrier ≤ 60. `npm run coverage` checks them. ≤ 20k on screen, ≤ 60 draw calls a frame (`npm run
+  perf`): enemies and loose parts are instanced batches, one draw call per model piece for every
+  body that wears it (DECISIONS #29), so a new enemy kind costs a call or two, not one per enemy.
+- **Obstacles by footprint** (DECISIONS #30): the pillar's strapped bales at every size (a post, the
+  tower, Jaw Yard's blocks); Long Lanes' walls are a low barrier, below the eye.
 - **Flat-shaded, low-poly.** The Rammer's armored front (the sloped ram plate with red hazard
   stripes) must read from far away and differ obviously from its flat back with the booster socket.
 
 ## Textures
 
-- **64x64 per family atlas** (rammer, booster, scrapper, claw, arena; the floor has its own
+- **64x64 per family atlas** (rammer, booster, scrapper, claw, arena, snapper, parts; the floor has its own
   tiling 64x64), painted texel by texel in the build scripts, Resurrect 64 only, a 3-shade ramp
   per material lit from the upper left, 1-texel plum seams and outlines.
 - In the renderer every texture is `NearestFilter`, no mipmaps, sRGB; every material is

@@ -59,7 +59,10 @@ threejs.org/docs for the pinned one, not memory.
     thrust. Look-back: Q / LB.
 12. **Dispose** everything on results → restart; WebGL memory does not collect itself.
 13. **Perf budget**, measured by `e2e/perf.mjs`: ≤ 60 draw calls, ≤ 20k triangles, 60 fps on
-    the owner's PC, ≥ 15 fps in headless SwiftShader (the proxy for a weak laptop).
+    the owner's PC, ≥ 15 fps in headless SwiftShader (the proxy for a weak laptop). Every pass
+    counts twice (the view and the mirror), so anything with many copies is instanced: walls,
+    obstacles, gate doors, and since M3 every enemy and loose part (one InstancedMesh per model piece,
+    per-instance color for flashes and glows; DECISIONS #29). Measured on The Heap's last wave.
 
 ## Testing
 

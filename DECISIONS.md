@@ -259,3 +259,81 @@ input; the sim is untouched (the drift test holds).
   never pokes through a wall the body touches; looking back, it sits that far ahead instead. You see
   more floor, so lanes, skid marks and the floor's rush read sooner, and the claw takes less of the
   frame. Presentation only.
+
+## Milestone 3: the run in first person (2026-10-12)
+
+The owner, on the published M2 build: "looks good ... otherwise get started on your next milestones".
+The natural next milestone was already named (#21, HANDOFF "Open points"): re-vendor the 2D game's
+M3 rules and present the run in first person. Nothing in the sim is ours: every change below is
+presentation or input, and the proposals in #24 still stand.
+
+- #28: **Re-vendored the 2D rules at 2D `297e40c`** (its M3, the M3 review fixes, and M4's few sim
+  changes): the run (five yards, six layouts, exits, the yard patch-up), the Snapper and the Jaw
+  Snapper, the Plow Rammer, three mounts with the Grip Treads, the Plow and the Jaws, hit zones that
+  tear by mount, armor by hit side. The vendored list grew by `src/ui/signs.ts` (the exit sign's
+  content, which the 2D run test checks) and the 2D `m3` and `run` tests; `vendor.json`'s
+  divergences were emptied, since nothing is kept against #21 any more. 105 tests (86 vendored, 2
+  drift, 14 steer, 3 of them new). *Why:* the owner asked for the next milestone, and every rule
+  change the 2D game made since `e0504af` was a fix or the run itself.
+- #29: **Enemies and loose parts are instanced batches** (`src/render3d/enemies3d.ts`, THREEJS-NOTES
+  rule 13). As separate meshes a Rammer cost five draw calls a pass, and The Heap's last wave is six
+  enemies: one InstancedMesh per model piece instead (Rammer body, Snapper body, booster shell, treads,
+  plow, jaw, shadow), filled from the sim each frame. Per-instance color does what per-material
+  color did: the hit flash (x3), the gold glint of an open back, a cracked part's grey. Every glow (both
+  enemies' eyes, every nozzle) is one batch of unlit unit boxes sized from the models' glow meshes, in
+  exact palette colors. The right jaw is the left one mirrored (DoubleSide; flat shading lights a
+  mirrored face correctly). Also: the eight gate doors are one mesh, the floodlights are drawn by the
+  main camera only (layer 2), your own chassis is merged into one mesh for the mirror. The Heap's
+  last wave: max 59 draw calls (budget 60), ~17k triangles, ~61 fps in SwiftShader.
+- #30: **The yards in 3D** (`src/render3d/arena3d.ts`): obstacles by footprint, each kind one
+  instanced Blender model: 32 px a pillar, 16 px a post (two bales, 1.36 m), 48 px the Plow Pit's
+  tower (four layers, 2.7 m), a 16 px run Long Lanes' barrier, anything else Jaw Yard's scrap block
+  (5.6 x 3.2 m, up to 2 m). **The barrier is 0.5 m, below the 0.68 m eye**, so from one lane you see
+  the next lane and the Rammers in it over the wall (the 2D game shows all three lanes at once);
+  Jaw Yard's blocks are tall, so its corners hide what's in them. **The exits:** once a yard is
+  cleared its exit gates' doors open and stay open, their lamps blink gold, and gold chevrons on the
+  floor point out through them. **The exit signs** (`src/ui3d/signs3d.ts`): the 2D sign's content
+  (the vendored `signLayout`: the yard's name, its parts' icons and names, its last wave's size) as a
+  panel pinned over each exit gate on the 2D layer, crisp at 1:1, with a gold arrow down onto the
+  gate; an exit out of view gets a gold arrow on the frame's edge, compass-style, with the yard's
+  name. *Why:* text painted on the floor 20 m away is a smear from the seat. Driving out wipes to the
+  next yard (ink bars, its name), and you come in through the opposite gate at 150 px/s, as in 2D.
+  The title's attract mode plays a different yard each time round.
+- #31: **The parts in first person.**
+  - **Grip Treads: a tap of S at speed is the power-slide, a U-turn** (`src/input3d/steer.ts`). The
+    2D slide swings you toward the stick while it lasts; from the seat "the stick" is the steer
+    demand, which turns with you, so the adapter holds a fixed target 173° round (the side you're
+    steering with A/D, the stick or the mouse, else to the right) until the sim's slide ends, then
+    steering finishes the turn. One slide per press; S held after it just coasts (there's no brake
+    with the treads, as in 2D). Tested: round in ~0.3 s, still at Slipstream, on the side you chose.
+    *Why:* the treads' line is the hairpin (strike, slide round, strike again), and in first person
+    turning round was the hardest thing to do (#24, #25): the treads make it one key.
+  - **View models** (`src/render3d/actors.ts`): your Plow is a gold blade across the bottom of the
+    view (tipped toward you, so you see its lip, not its braced back), your Jaws flank the claw (they
+    gape with it and clamp shut while you swing), your Treads' gold guards sit in the bottom corners.
+    The mirror sees the booster and the treads on your body; not the front parts (the mirror camera
+    sits in front of you, looking back over you).
+  - **The Jaws' whip:** the sim spins your heading a full turn round the bitten enemy in 0.2 s and then
+    flings you out facing back the way you came: 540° of turning from the seat. The view instead starts
+    on the enemy you bit and turns one way through half a turn while the world wheels past, ending on
+    the line you're flung out along, continuous at both ends (`Stage.latchYaw`).
+- #32: **HUD, hints and texts.** Three part slots bottom right (rear, sides, front, as in 2D) with the
+  2D game's four part icons, cropped from its pixel-art-studio sheet into `public/ui/part-icons.png`
+  (same palette, same names; the 2D folder was only read). YARD n/5 WAVE n/3 by the hull. The 2D M3
+  hints, placed in the world: the enemy hints over the nearest enemy they're about, the part and exit
+  hints above the claw; "TAP S AT SPEED TO POWER-SLIDE ROUND" says the first-person key. A knock names
+  the part ("JAWS KNOCKED LOOSE"); CLANG! JOUST IT, BLOCKED!, SLUNG! as in 2D. The pause card adds a
+  line for each bolted part's verb. The wave banner is drawn last and its subtitle sits clear of the
+  title. Run results as in 2D (yards cleared, parts torn off, wrecks, jousts, the build's icons) and
+  run bests on the title.
+- #33: **Version 0.2.0** (on the title, like the 2D game), and the service worker's cache is
+  `salvager3d-v2`: models and icons aren't hashed, so a new cache name is what makes a returning
+  player fetch new ones (bump it with every release that changes a model).
+- #34: **A whole-run check in the real app** (`e2e/run.mjs`): the drafter bot plays a run fast-
+  forwarded through the real presentation (a real frame drawn between chunks of ticks), and the run
+  must go Ring → three different middle yards → Heap → results with no console errors. A wave the bot
+  hasn't finished in 90 s of sim is cleared for it and counted: the rule bots are weak against
+  Snapper packs (2D #74), and this checks the presentation, not difficulty.
+- Smaller: the claw sits 3 cm lower (the zoomed-out view showed more of its arm, and a close Snapper
+  hid behind it); the drift-check warning in HANDOFF no longer applies until the 2D game changes its
+  rules again.

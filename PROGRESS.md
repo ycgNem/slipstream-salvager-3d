@@ -2,6 +2,28 @@
 
 What is built. Newest first.
 
+## 2026-10-12 — Milestone 3: the run in first person
+
+- **The view zoomed out** at the owner's request: FOV 82-102° (was 70-92°), the eye 0.68 m up and
+  a little behind the body's centre (DECISIONS #27).
+- **The 2D rules re-vendored** at 2D `297e40c`: the run, the Snapper, the Plow Rammer, the Jaw
+  Snapper, three mounts, the Grip Treads, the Plow, the Jaws (#28).
+- **The run:** five yards (The Ring; three of the Kennel, Long Lanes, the Plow Pit and Jaw Yard,
+  chosen by driving out an exit; The Heap), each with its own obstacles; exits with gold lamps,
+  chevrons and signs pinned over the gates (edge arrows when out of view); the wipe; run results and
+  bests; the title tours the yards (#30, #32).
+- **Models** by script in Blender: the Snapper (92 tris), the Grip Treads (60), the Plow (44), the Jaws
+  (72), the post (20), the tower (132), the scrap block (258), the barrier (26); a parts atlas in gold.
+- **Enemies as instanced batches**, so The Heap's six fit the draw-call budget (#29).
+- **Your parts from the seat:** a tap of S with the Grip Treads power-slides you round; the Plow's
+  blade, the Jaws and the treads' guards as view models; the Jaws' whip turns the view half a turn
+  from the enemy you bit to your fling line; three HUD slots; the M3 hints; the pause card lists
+  your parts' verbs (#31, #32).
+- **Version 0.2.0**, service worker cache v2 (#33).
+- **Checks:** 105 tests; smoke; 58 scenes with 0 overlaps; perf on The Heap's last wave (max 59
+  draw calls, ~17k triangles, ~61 fps); coverage (16 models); whole runs end to end (`e2e/run.mjs`,
+  #34).
+
 ## 2026-10-12 — Published
 
 - The GitHub repo https://github.com/ycgNem/slipstream-salvager-3d (public, like the 2D game's) with `main` and `works`; GitHub Pages builds,
@@ -75,4 +97,5 @@ What is built. Newest first.
 |---|---|
 | M0 — Vendor, scaffold, 3D pipeline | done |
 | M1 — First-person parity with the 2D slice | done |
-| M2 — Playtest fixes | first pass from the critic and QA review; published; waiting for the owner's playtest |
+| M2 — Playtest fixes | first pass from the critic and QA review; published; the owner's note: zoom out (#27) |
+| M3 — The run in first person | built and reviewed; waiting for the owner's playtest |

@@ -43,9 +43,10 @@ get 1-texel plum outlines and a 3-shade ramp lit from the upper left.
 |---|---|---|
 | speed (teal) | 39–43, 48 | **never in a texture**; only the renderer's recolour of `claw_glow` |
 | danger (red/magenta) | 10–12, 14, 15, 59, 60 | Rammer eyes + hazard stripes on the Rammer front plate; `gate_lamp` material |
-| salvage (gold) | 17, 18, 23, 28 | booster only |
+| salvage (gold) | 17, 18, 23, 28 | the parts only: booster, treads, plow, jaws |
 | player | rust 19–22, 16, cream 63, plum 0 (+ steel 6–8 jaws) | scrapper, claw |
 | Rammer | slate 44–46, purple 49–51, sage 34–36 | rammer |
+| Snapper | lavender/purple 49–52, blue steel 44–46 | snapper |
 | arena | warm neutrals 1–5, olive 24–25, moss 34–35, plum 0; gate steel 1/2/6 | pillar, wall, gate, floor |
 
 The build scripts assert these (forbidden indices raise), and the verifier re-checks the
@@ -63,6 +64,14 @@ textures embedded in each `.glb`.
 | `wall.glb` | `wall` | mesh `wall`: x, y ∈ [−0.4, 0.4], 1.2 m tall; tiles along X | `arena_atlas` | 42 (≤ 60) |
 | `gate.glb` | `gate` | `frame` (0,0,0), `door_l` (−0.4, 0, 0), `door_r` (0.4, 0, 0) (slide along X), `lamp` (0, 0, 1.64); opening x ∈ [−0.8, 0.8] | `arena_atlas`, `gate_lamp` | 130 (≤ 250) |
 | `floor.glb` | `floor` | mesh `floor`: one 1.6 m quad at z = 0, UV 0..1 of its own tiling `floor.png` | `floor_tile` | 2 |
+| `snapper.glb` | `snapper` | `body` (0,0,0) hull + snout + bare axles + tail fin (no treads: they're the part), `eyes`, empty `mount_front` (0.40, 0, 0) | `snapper_atlas`, `snapper_eyes` | 92 (≤ 350) |
+| `treads.glb` | `treads` | mesh `treads`: both track units at y = ±0.30, 0.84 m long, gold guards on top and down the outer sides | `parts_atlas` | 60 (≤ 200) |
+| `plow.glb` | `plow` | mesh `blade`: origin at the mount (the blade's back edge on the floor), reaching +X to 0.27, 0.96 m wide, 0.42 m tall, two struts | `parts_atlas` | 44 (≤ 120) |
+| `jaws.glb` | `jaws` | `jaw_l` (0, 0.12, 0.16), `jaw_r` (0, −0.12, 0.16) hinges (turn about local Z), each reaching 0.34 m and curling in | `parts_atlas` | 72 (≤ 160) |
+| `post.glb` | `post` | mesh `post`: two bales, exactly 0.8 × 0.8 m, 1.36 m tall | `arena_atlas` | 20 (≤ 120) |
+| `tower.glb` | `tower` | mesh `tower`: four layers of bales, exactly 2.4 × 2.4 m, 2.7 m tall | `arena_atlas` | 132 (≤ 200) |
+| `block.glb` | `block` | mesh `block`: bales over exactly 5.6 × 3.2 m (long side X), two layers and a broken third, ≤ 2.0 m | `arena_atlas` | 258 (≤ 300) |
+| `barrier.glb` | `barrier` | mesh `barrier`: a jersey barrier 0.8 m along X (tiles along X), 0.8 m deep, 0.5 m tall | `arena_atlas` | 26 (≤ 60) |
 
 Emissive base colours: `rammer_eyes` #e83b3b, `booster_glow` #fb6b1d, `claw_glow` #9babb2,
 `gate_lamp` #e83b3b. The booster attaches by placing `booster` (its root) at a body's
@@ -73,8 +82,9 @@ names unique (`wall.001`), so `pix.export_glb` renames the node back in the glTF
 
 ## Textures
 
-`art/<family>/<family>.png` (64×64): `rammer`, `booster`, `scrapper`, `claw`, `arena`
-(shared by pillar, wall, gate; painted by `art/arena/arena_atlas.py`) and
+`art/<family>/<family>.png` (64×64): `rammer`, `booster`, `scrapper`, `claw`, `snapper`, `arena`
+(shared by pillar, wall, gate, post, tower, block, barrier; painted by `art/arena/arena_atlas.py`;
+`art/arena/bales.py` stacks the bales), `parts` (shared by treads, plow, jaws; `art/parts/parts_atlas.py`) and
 `art/arena/floor.png` (tiles seamlessly in both directions). Target 40–64 texels/m (claw
 ~100–150, arena 20–40); faces are mapped to atlas rectangles sized to keep texels square.
 

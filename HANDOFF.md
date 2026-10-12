@@ -4,44 +4,45 @@ Read this first, every session.
 
 ## Where things stand (2026-10-12)
 
-- **Milestone 0 and Milestone 1 are built, plus a first M2 pass of fixes from an internal critic
-  and visual QA review (and the critic's re-check). Published. Stopped for the owner's playtest.**
-  Built overnight in one autonomous session at the owner's request ("complete a lot of milestones
-  and come back with a playable version").
+- **M0-M2 are published. M3, the run in first person, is built and reviewed, not published.** The
+  owner played the published M2 build ("looks good"), asked for the view zoomed out (done, DECISIONS
+  #27) and for the next milestones: M3 is the 2D game's run re-vendored and presented from the seat
+  (DECISIONS #28-#34, plus the review fixes after them).
 - This is a SEPARATE game from the 2D Slipstream Salvager at `C:\Users\jacks\Documents\slipstream-salvager`.
-  That folder is read-only for this project: never write, commit or run npm there.
-- **The rules are the 2D game's M2 slice** (vendored from 2D `e0504af`). The 2D project moved on to
-  its M3 (a run, more enemies) and M4 (art, 0.2.0) during the night; this game deliberately stays on
-  the slice until the owner decides (DECISIONS #21, accepted again at 2D `45dc78f`). Re-vendoring is
-  the natural start of a 3D M3.
-- **Published** (DECISIONS #26): the repo is https://github.com/ycgNem/slipstream-salvager-3d (public, like the 2D game's), and it's live at
-  **https://ycgnem.github.io/slipstream-salvager-3d/**. Every push to `main` runs the tests, builds and deploys
-  (`.github/workflows/deploy.yml`). Day-to-day work is committed on `works`; publishing is
-  fast-forwarding `main` to `works` and pushing both (commands below).
+  That folder is read-only for this project: never write, commit or run npm there (git commands
+  there use `--no-optional-locks`).
+- **The rules are the 2D game's at 2D `297e40c`** (its M3, its M3 review fixes, its M4): vendored,
+  never edited here. Nothing is kept against the 2D game any more (`vendor.json` has no divergences).
+- **Published** (DECISIONS #26): the repo is https://github.com/ycgNem/slipstream-salvager-3d, live at
+  **https://ycgnem.github.io/slipstream-salvager-3d/** (still the M2 build until the owner says to
+  publish M3). Every push to `main` runs the tests, builds and deploys (`.github/workflows/deploy.yml`).
+  Day-to-day work is committed on `works`; publishing is pushing `works` and `works:main`.
 
 ## Next session: start here
 
-1. Read this file, then `ROADMAP.md` (the playtest questions are under Milestone 2).
-2. If the owner has playtest notes, each note becomes one change on `works` ending "DECISIONS #N"
-   (the next number is in `DECISIONS.md`). Run the checks (below), commit, and publish only when the
-   owner says so.
-3. Open calls only the owner can make are under "Open points" below: the rule proposals and whether
-   to re-vendor the 2D game's newer rules (that would be the start of a 3D Milestone 3).
-4. `npm test` will fail on the drift check if the 2D project commits rule changes again. That is
-   the design: either re-vendor (`npm run vendor`) or keep ours with
-   `node scripts/vendor.mjs --accept '#21'` and note it in DECISIONS #21.
+1. Read this file, then `ROADMAP.md` (Milestone 3 has the playtest questions; Milestone 4 isn't
+   planned yet).
+2. If the owner has playtest notes on M3, each note becomes one change on `works` ending "DECISIONS
+   #N" (the next number is in `DECISIONS.md`). Run the checks (below), commit, and publish only when
+   the owner says so.
+3. Open calls only the owner can make are under "Open points" below.
+4. `npm test` fails on the drift check if the 2D project commits rule changes again. That is the
+   design: either re-vendor (`npm run vendor`) or keep ours with `node scripts/vendor.mjs --accept '#N'`
+   and log it in DECISIONS.
 
 ## How to playtest (for the owner)
 
 1. Double-click **`Play.bat`** and open **http://localhost:5183** (keep the black window open).
    Or `npm run dev`. The tuning panel is always on in the dev server: press **`** (backtick) or F1.
+   `http://localhost:5183/?yard=kennel` starts a run in that yard (`ring`, `kennel`, `lanes`, `pit`,
+   `jaws`, `heap`).
 2. **Click the game view** once a run starts: that lets the mouse steer (Esc gives the mouse back
    and pauses).
 
    | | Keyboard + mouse | Gamepad |
    |---|---|---|
    | Steer | mouse (sets where you want the nose; the body turns at its own rate), or A/D (tap = gentle, hold = hard turn that costs speed) | left stick |
-   | Thrust / brake | W / S (S never reverses or flips you; below a crawl it just lets you coast and turn) | RT (or stick up) / LT |
+   | Thrust / brake | W / S (S never reverses or flips you; **with the Grip Treads, a tap of S at speed power-slides you round**) | RT (or stick up) / LT |
    | Rip (hold with the Booster to rev a Burn) | left click or Space | A or RB |
    | Bolt on (tap while towing) | E or right click | Y or X |
    | Look back (hold) | Q | LB |
@@ -49,35 +50,35 @@ Read this first, every session.
    | Pause | Esc or P | Start |
    | Music on/off | N | |
 
-3. What's there: the 2D slice in first person. Three waves in the Ring (1, 2, 3 Rammers). Build
-   speed until the claw in front of you glows teal, hit a Rammer's back to tear its booster off; it
-   swings behind you on a cable (watch the **mirror** at the top); tap E to bolt it on; now holding
-   Rip revs a Burn down your own teal lane. Your bolted part is your armor.
-4. **Reading threats in first person:** the mirror at the top shows what's behind you (and your own
-   back, with the booster on it); a Rammer winding up where neither the view nor the mirror shows it
-   gets an **arrow** (light grey aiming, flashing red locked, red charging): on the screen's side edge
-   if it's ahead of you, beside the mirror (and that side of the mirror's frame lights up) if it's
-   behind. Its lane is painted on the floor; its windup is heard from where it is, muffled when it's
-   behind you (headphones help). When a Rammer that charged past you goes into its skid, the
-   mirror's frame flashes **gold**: its back is open, swing round. The pause screen has a short
-   controls card.
-5. **The playtest questions** are in ROADMAP.md (Milestone 2). The new first-person one: play once
-   with the **HUD hidden (H)** — could you tell your speed?
-6. **Flat mode** (the removal test) and **START WITH THE BOOSTER** are in the tuning panel, as in 2D.
-7. Settings has mouse sensitivity, invert, the speed gauge, and the **pixel palette filter** (on by
-   default; off shows the raw 3D render).
+3. **The run:** five yards. The Ring first (three Rammer waves: tear off a Booster, bolt it on). Clear
+   a yard and two exit gates open (gold lamps, gold chevrons on the floor, a sign over each: the next
+   yard's name, the parts its enemies carry, its last wave's size; a gold arrow at the edge of the
+   view when the exit is out of sight). Drive out through the one you want. The Kennel (Snapper packs,
+   Grip Treads), Long Lanes (Rammers down three lanes, walls low enough to see over), the Plow Pit
+   (Plow Rammers: their front takes nothing, joust their charge), Jaw Yard (Jaw Snappers). The Heap is
+   always last. Your hull gets +1 between yards; your parts come with you.
+4. **Your parts:** Booster on your back (hold Rip: the Burn), Grip Treads on your sides (tap S at speed:
+   a power-slide U-turn), Plow or Jaws on your front (the Plow: drive into them at teal, it blocks
+   charges; the Jaws: a teal hit bites on and slings you back out). A hit knocks off the part on the
+   side it came from. The bottom right shows your three slots. Pause shows what each part does.
+5. **Reading threats in first person** (as in M2): the mirror at the top shows what's behind you;
+   an enemy winding up where neither the view nor the mirror shows it gets an arrow (grey aiming,
+   flashing red locked, red attacking); lanes are painted on the floor; sounds come from where they
+   are, muffled from behind; the mirror's frame flashes gold when a Rammer that charged past opens its
+   back.
+6. **The playtest questions** are in ROADMAP.md (Milestone 3).
+7. **Flat mode** and **START WITH** (any part, for the whole run) are in the tuning panel, as in 2D.
+8. Settings has mouse sensitivity, invert, the speed gauge, and the pixel palette filter.
 
 ## Open points (for the owner)
 
-- **The review's rule proposals** (DECISIONS #24): a longer Rammer skid in 3D (the tear opening is
-  behind you in first person), and a low-speed brake (S coasts the last 80 px/s, because the sim's
-  brake pivots below that). Neither is in; both need a sim change, which is the 2D game's.
-- **Re-vendoring the 2D M3 rules** (DECISIONS #21) is the natural start of a 3D M3.
-- **Not verified by a human yet:** how the mouse feels (sensitivity default, the kept turn), and
-  whether the muffled-from-behind sound helps. These are the playtest's job.
-- **The critic's last word** (DECISIONS #25): the tear opening behind you is still hard at speed,
-  because the body's own turn rate is the limit. Try `skidTime` +0.3 in the tuning panel (backtick)
-  and see if the hit-the-back loop opens up.
+- **Publish M3?** It's committed on `works` only. "Push live" = push `works` and `works:main`.
+- **The M2 proposals** (DECISIONS #24) still stand: a longer Rammer skid in 3D, a low-speed brake.
+  Both are rule changes, so they belong in the 2D game first. The Grip Treads' slide now gives first
+  person a U-turn; whether that's enough is a playtest question.
+- **Not verified by a human yet:** the Snapper packs from the seat, the S-tap slide, the Jaws' whip
+  camera, the exit signs, and the zoomed-out view.
+- **Milestone 4** isn't planned: plan it from the owner's notes.
 
 ## How to run everything (for sessions)
 
@@ -89,16 +90,17 @@ Put the portable Node first in every shell:
 |---|---|---|
 | Play (dev) | `npm run dev` | port 5183; `.claude/launch.json` has `game3d` on 5191 |
 | Typecheck | `npm run typecheck` | |
-| Unit tests | `npm test` | 74: the vendored 2D suite (61, unchanged), the drift test (2), the steer-adapter tests (11) |
+| Unit tests | `npm test` | 105: the vendored 2D suite (86, unchanged), the drift test (2), the steer-adapter tests (14) |
 | Drift check | `npm run vendor -- --check` | what the 2D project changed since the snapshot; `--accept '#N'` keeps ours against a decision |
 | Strategy bots | `npx vite-node scripts/bots.ts` | the 2D bots on the vendored sim |
 | Smoke test | `npm run e2e` | real key presses, pointer lock asked, pause, zero console errors |
-| Screenshot sweep | `npm run shots` (or `-- slip burn`) | every scene in `src/app/debug.ts`, PNGs + overlap audit in `e2e/out/shots/` |
-| Watch a bot | `node e2e/watch.mjs 40 7 hitAndRunBot [--booster]` | first-person screenshots of every key moment in `e2e/out/watch/` |
-| Perf | `npm run perf` | fps, draw calls, triangles in SwiftShader, wave 3 |
+| Screenshot sweep | `npm run shots` (or `-- slip burn`) | all 58 scenes in `src/app/debug.ts` (every yard, the new enemies and parts, exits, the wipe), PNGs + overlap audit in `e2e/out/shots/` |
+| Watch a bot | `node e2e/watch.mjs 40 7 drafterBot [--booster\|--treads\|--plow\|--jaws] [--yard=kennel]` | first-person screenshots of every key moment in `e2e/out/watch/` |
+| A whole run | `node e2e/run.mjs 5 8` | a bot plays a run fast-forwarded through the real app; screenshots per yard in `e2e/out/run/` |
+| Perf | `npm run perf` | fps, draw calls, triangles in SwiftShader, The Heap's last wave (six enemies) |
 | Model coverage | `npm run coverage` | every model from its .glb, node names, budgets, pixel filtering |
 | Rebuild models | `npm run models` | headless Blender, every `art/*/build_*.py`, then the verifier |
-| Web build | `npm run build` / `Package for web.bat` | `dist/`, about 215 KB gzipped + 100 KB of models |
+| Web build | `npm run build` / `Package for web.bat` | `dist/`, about 230 KB gzipped + 184 KB of models |
 | Windows app | `npm run dist:win` / `Build desktop app.bat` | `release/` |
 | App icons | `npm run icons` | |
 | Publish | `git push origin works`, then `git push origin works:main` | `main` deploys to Pages (Actions tab shows the run); only when the owner says so |
@@ -112,23 +114,30 @@ QA, read-only), both rewritten for first person.
 ## Code map
 
 - `src/sim/`, `src/data/`: **vendored** from the 2D game; never edit here (`vendor.json`,
-  `tests/vendor.test.ts`). `src/render/names.ts` is vendored too (the 2D data test reads it).
+  `tests/vendor.test.ts`). `src/render/names.ts` and `src/ui/signs.ts` are vendored too (the 2D
+  tests read them).
 - `src/input3d/steer.ts`: the first-person input adapter (mouse demand, keys, stick → the sim's
   stick vector). Pure; `tests/steer.test.ts`.
 - `src/render3d/`: everything three.js. `view.ts` (640x360 targets, composite with the palette
   snap and edge smear, the mirror, the blit), `camera.ts` (FOV, shake, look-back, mirror camera),
-  `stage.ts` (poses the world from the sim each frame with interpolation; sim events → particles),
-  `actors.ts` (Rammer, parts, your robot, cable, debris, the claw), `arena3d.ts` (the Ring, gates,
-  skyline, lights), `decals.ts` (lanes, shadows, skid marks), `particles.ts`, `models.ts` (GLB
-  loading, placeholders), `textures.ts`, `units.ts` (1 sim px = 0.05 m).
-- `src/ui3d/`: the 2D layer: `hud.ts`, `hints.ts`, `overlay.ts` (floating text, banner, speed
-  lines, reticle, edge markers).
+  `stage.ts` (poses the yard from the sim each frame with interpolation; a new arena per layout; sim
+  events → particles; the Jaws' whip camera), `enemies3d.ts` (Rammers, Snappers, their parts, loose
+  and towed parts and shadows as instanced batches), `actors.ts` (your robot, cable, debris, the claw
+  and your front/side parts as view models), `arena3d.ts` (a yard: walls, obstacles by footprint,
+  gates with exits, skyline, lights), `decals.ts` (lanes incl. the gold exit chevrons, shadows, skid
+  marks), `particles.ts`, `models.ts` (GLB loading, placeholders), `textures.ts`, `units.ts` (1 sim px =
+  0.05 m).
+- `src/ui3d/`: the 2D layer: `hud.ts` (hull, yard and wave, the three part slots, the gauge),
+  `hints.ts`, `overlay.ts` (floating text, banner, speed lines, reticle, edge markers), `signs3d.ts`
+  (the exit signs and arrows), `icons.ts` (the part icons).
 - `src/ui/`: the 2D game's UI kit, font and overlap audit (copied).
-- `src/app/`: `app.ts` (screens, title attract mode, pointer lock), `play.ts` (one encounter:
-  input → sim → events → sound and effects), `settings.ts`, `tuning.ts`, `debug.ts` (scenes).
+- `src/app/`: `app.ts` (screens, title attract mode, pointer lock), `play.ts` (a run: input → sim →
+  events → sound and effects; the wipe between yards; run results), `settings.ts`, `tuning.ts`,
+  `debug.ts` (scenes).
 - `src/engine/`: loop, rng, input (+ pointer lock, look, hud), gamepad (+ triggers), audio
   (+ positional panners), music.
-- `art/`: Blender build scripts and their textures; `public/models/`: the built .glb files.
+- `art/`: Blender build scripts and their textures (`arena`, `booster`, `claw`, `parts`, `rammer`,
+  `scrapper`, `snapper`); `public/models/`: the built .glb files (16); `public/ui/part-icons.png`.
 
 ## Environment
 

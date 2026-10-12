@@ -6,8 +6,10 @@ what's built, `HANDOFF.md` where the last session stopped. The game's rules are 
 (`C:\Users\jacks\Documents\slipstream-salvager`, read-only from here), vendored in `src/sim` and
 `src/data`.
 
-**Status (2026-10-12):** M0 and M1 are built, and an M2 pass of fixes from the critic's and the
-visual QA's review is in. Published at https://ycgnem.github.io/slipstream-salvager-3d/. **Stopped for the owner's playtest.**
+**Status (2026-10-12):** M0-M2 are built and published (https://ycgnem.github.io/slipstream-salvager-3d/).
+The owner played it ("looks good"), asked for the view zoomed out (done, DECISIONS #27) and for the
+next milestones: **M3, the run in first person, is built** (DECISIONS #28-#34) and reviewed by the
+critic and visual QA agents; it waits for the owner's playtest and their word to publish.
 
 **How every session runs:** start with *"Read ROADMAP.md and HANDOFF.md"*. Build the phase,
 deciding small things alone and logging them in `DECISIONS.md`. Run the phase's checks. Commit on
@@ -56,7 +58,7 @@ DECISIONS #26).
 8. The shots sweep over every state, the overlap audit on the HUD, smoke, perf, coverage, the sim
    tests.
 
-## Milestone 2 — Playtest fixes (started: the critic's pass; the owner's notes next)
+## Milestone 2 — Playtest fixes (the critic's pass done and published; the owner's notes became #27 and M3)
 
 Each of the owner's playtest notes becomes one change commit ending "DECISIONS #N". Rule changes
 the 3D game seems to need go to `DECISIONS.md` as **proposals**, since the sim is the 2D game's.
@@ -79,6 +81,44 @@ From the 2D game's M1 list, in first person:
 
 The new one (PLAN.md): **10. Play once with the HUD hidden (H). Could you tell your speed with the
 HUD hidden?**
+
+## Milestone 3 — The run in first person (built; the owner's playtest next)
+
+The 2D game's M3 (its PLAN.md section 8) re-vendored and presented from the seat. Rules: none of
+ours (DECISIONS #28).
+
+1. **Re-vendor** the 2D rules (2D `297e40c`), with its M3 and run tests and the exit sign's layout.
+2. **The yards:** obstacles by footprint as Blender models (post, tower, barrier below the eye, scrap
+   block); a new arena per yard; exits that open with gold lamps and chevrons; exit signs pinned over
+   the gates and edge arrows when out of view; the wipe; entering through the opposite gate; run
+   results and bests; the attract mode tours the yards.
+3. **The enemies:** the Snapper and Jaw Snapper (hunt, circle, snap windup with its short lane, the
+   snap, the broadside power-slide, stunned, stripped limp) and the Plow Rammer, as instanced
+   batches so The Heap's six fit the draw-call budget.
+4. **Your mounts:** the Grip Treads' power-slide as a tap of S (a first-person U-turn), view models
+   for the treads, plow and jaws, the Jaws' whip camera, three HUD slots, the M3 hints placed in the
+   world, the pause card's part lines.
+5. **Checks:** typecheck; `npm test` (105); `npm run e2e`; `npm run shots` (58 scenes, 0 overlaps);
+   `npm run perf` (The Heap's last wave within budget); `npm run coverage` (16 models, no
+   placeholders); `node e2e/run.mjs 5 8` (whole runs end to end); then the `indie-critic` and
+   `qa-screens` agents and their fixes.
+
+### Playtest questions for M3 (for the owner)
+
+1. Could you read a Snapper pack from the seat: where they were, which one was about to snap?
+2. The Grip Treads: did a tap of S to slide round feel like the hairpin (strike, slide, strike again)?
+3. The Plow and the Jaws from the seat: did ramming and the bite-and-sling feel decisive, or
+   disorienting?
+4. Did you find the exits and understand the signs? Did you choose a yard for its part?
+5. Did the zoomed-out view help? Is the claw (and a front part) in the way?
+6. Which yard was the most fun, which the least, and why?
+
+## Milestone 4 — not planned yet
+
+To plan from the owner's notes on M3. Candidates: whatever the playtest finds; the M2 proposals
+(#24: a longer skid in 3D, a low-speed brake), which are rule changes and go to the 2D game first; a
+pass on the models (the 2D game's M4 replaced its placeholder look family by family); and keeping up
+with the 2D game's next rules (`npm run vendor -- --check`).
 
 ---
 
