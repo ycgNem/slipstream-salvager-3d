@@ -123,3 +123,12 @@ the code.
   full brightness its plate pattern competed with the lanes (STYLE: the floor is the calmest thing).
 - #20: **A frozen screenshot scene ages its effects tick by tick**, like play, so a flash that
   ended before the freeze isn't frozen on screen.
+- #21: **The 3D game stays on the 2D M2 rules (the `e0504af` snapshot) for now.** While M1 was being
+  built, the 2D project committed its M3 (`c2506b1`: a five-yard run, the Snapper, the Plow and the
+  Jaws, enemies as data with `w.enemies` replacing `w.rammers`, three mounts, a 0.2.0 version); 21
+  vendored files changed and the drift test caught it, as designed. M1 here is parity with the 2D
+  *slice*, and the renderer is built on the M2 sim, so re-vendoring now would be a new milestone, not
+  a fix. Kept our copy with `node scripts/vendor.mjs --accept '#21'`, which records the 2D version of
+  each file it accepted in `vendor.json`: if the 2D project changes any of them again, the test fails
+  again. **For the owner:** re-vendoring M3 is the natural start of a 3D M3 (the run, the yards and
+  two more enemy models); the 2D tests' 61 cases here are the M2 ones.

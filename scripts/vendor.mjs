@@ -7,6 +7,9 @@
 //
 // Usage: node scripts/vendor.mjs [<2D commit>]       re-vendor (defaults to the 2D HEAD)
 //        node scripts/vendor.mjs --check             list files that differ from the 2D HEAD
+//        node scripts/vendor.mjs --accept '#21'      keep our copy of every file that differs, logged
+//                                                    against a decision; the drift test passes until
+//                                                    the 2D project changes that file again
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -43,6 +46,23 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
     for (const f of filesAt(head)) if (!(f in man.files)) { console.log(`new in 2D: ${f}`); n++; }
     console.log(`${n} difference(s) between the vendored copy (2D ${man.commit.slice(0, 7)}) and 2D HEAD ${head.slice(0, 7)}`);
     process.exit(n ? 1 : 0);
+  }
+  if (process.argv.includes('--accept')) {
+    const decision = process.argv[process.argv.indexOf('--accept') + 1];
+    if (!decision) throw new Error('--accept needs a decision, e.g. --accept "#21"');
+    const man = JSON.parse(fs.readFileSync('vendor.json', 'utf8'));
+    const head = git('rev-parse', 'HEAD').trim();
+    let n = 0;
+    for (const f of Object.keys(man.files)) {
+      let theirs = null;
+      try { theirs = hash(git('show', `HEAD:${f}`)); } catch { /* gone in 2D */ }
+      if (theirs === man.files[f]) continue;
+      man.divergences[f] = { decision, at: head, theirs };
+      n++;
+    }
+    fs.writeFileSync('vendor.json', JSON.stringify(man, null, 2) + '\n');
+    console.log(`kept our copy of ${n} file(s) that differ from 2D ${head.slice(0, 7)}, logged as ${decision}`);
+    process.exit(0);
   }
   const commit = git('rev-parse', process.argv[2] ?? 'HEAD').trim();
   const files = {};
